@@ -37,37 +37,37 @@ Ja és un prototip funcional, provat amb dades d'exemple. El que demanem a Digit
 
 **Accés sense contrasenya, amb el correu de l'institut**
 
-<img src="images/captura-login.jpg" width="800" alt="Pantalla d'accés de Tutoria Personal">
+<img src=".screenshots/captura-login.jpg" width="800" alt="Pantalla d'accés de Tutoria Personal">
 
 <br><br>
 
 **L'alumnat ordena el professorat arrossegant**
 
-<img src="images/captura-votacio-alumnat.jpg" width="800" alt="Votació de l'alumnat amb drag and drop">
+<img src=".screenshots/captura-votacio-alumnat.jpg" width="800" alt="Votació de l'alumnat amb drag and drop">
 
 <br><br>
 
 **El professorat confirma o rebutja sol·licituds**
 
-<img src="images/captura-tauler-professorat.jpg" width="800" alt="Tauler del professorat amb sol·licituds pendents">
+<img src=".screenshots/captura-tauler-professorat.jpg" width="800" alt="Tauler del professorat amb sol·licituds pendents">
 
 <br><br>
 
 **L'alumnat veu el seu tutor assignat**
 
-<img src="images/captura-tutor-alumnat.jpg" width="800" alt="Vista de l'alumnat amb el seu tutor personal">
+<img src=".screenshots/captura-tutor-alumnat.jpg" width="800" alt="Vista de l'alumnat amb el seu tutor personal">
 
 <br><br>
 
 **Administració gestiona comptes**
 
-<img src="images/captura-admin-comptes.jpg" width="800" alt="Panell d'administració de comptes">
+<img src=".screenshots/captura-admin-comptes.jpg" width="800" alt="Panell d'administració de comptes">
 
 <br><br>
 
 **Pas de curs automatitzat al tancament de l'any**
 
-<img src="images/captura-pas-de-curs.jpg" width="800" alt="Panell de pas de curs">
+<img src=".screenshots/captura-pas-de-curs.jpg" width="800" alt="Panell de pas de curs">
 
 </div>
 
