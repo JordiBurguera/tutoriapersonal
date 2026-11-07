@@ -1,58 +1,195 @@
-# Tutoría personal
+# 📋 Tutoria Personal — proposta a Digitalització
 
-Sustituye al Google Form de la elección de tutoría personal de Les Carolines. Prototipo funcional: frontend básico y backend sencillo. La interfaz está en valenciano.
+<div align="center">
 
-## Puesta en marcha
+**Sistema web que substitueix el Google Form d'elecció de tutoria personal de Les Carolines**
 
-Necesita Node 22.13 o superior.
+<pre align="center">
+&lt;/&gt; construït per alumnat, per a l'institut
+</pre>
 
-```sh
-npm install
-cp .env.example .env   # define al menos ADMIN_USER
-npm start              # http://localhost:3000
-npm test
+![Node.js](https://img.shields.io/badge/Node.js-22.13+-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![Express](https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-node:sqlite-07405E?style=for-the-badge&logo=sqlite&logoColor=white)
+![WebSocket](https://img.shields.io/badge/WebSocket-temps%20real-010101?style=for-the-badge&logo=socketdotio&logoColor=white)
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-ES2024-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![Nodemailer](https://img.shields.io/badge/Nodemailer-SMTP-22B573?style=for-the-badge&logo=gmail&logoColor=white)
+
+</div>
+
+---
+
+## Per a què serveix
+
+El Google Form arreplega respostes, però no reparteix tutor a ningú: algú ha de creuar preferències a mà, parlar amb cada professor i mantindre la llista final.
+
+**Tutoria Personal** automatitza tot el procés: l'alumnat ordena les seues preferències arrossegant, el sistema envia la sol·licitud en cascada fins que un professor l'accepta, i administració només intervé en els casos excepcionals.
+
+Ja és un prototip funcional, provat amb dades d'exemple. El que demanem a Digitalització és que ens deixe donar-ho a conéixer i posar-ho en marxa per a l'institut.
+
+---
+
+## Captures
+
+<div align="center">
+
+**Accés sense contrasenya, amb el correu de l'institut**
+
+<img src="images/captura-login.jpg" width="800" alt="Pantalla d'accés de Tutoria Personal">
+
+<br><br>
+
+**L'alumnat ordena el professorat arrossegant**
+
+<img src="images/captura-votacio-alumnat.jpg" width="800" alt="Votació de l'alumnat amb drag and drop">
+
+<br><br>
+
+**El professorat confirma o rebutja sol·licituds**
+
+<img src="images/captura-tauler-professorat.jpg" width="800" alt="Tauler del professorat amb sol·licituds pendents">
+
+<br><br>
+
+**L'alumnat veu el seu tutor assignat**
+
+<img src="images/captura-tutor-alumnat.jpg" width="800" alt="Vista de l'alumnat amb el seu tutor personal">
+
+<br><br>
+
+**Administració gestiona comptes**
+
+<img src="images/captura-admin-comptes.jpg" width="800" alt="Panell d'administració de comptes">
+
+<br><br>
+
+**Pas de curs automatitzat al tancament de l'any**
+
+<img src="images/captura-pas-de-curs.jpg" width="800" alt="Panell de pas de curs">
+
+</div>
+
+---
+
+## Flux de l'elecció
+
+```mermaid
+flowchart TD
+    A[Alumne entra amb correu de l'institut] --> B[Ordena professorat per preferencia]
+    B --> C{Posa primer al seu<br>tutor de l'any anterior?}
+    C -- Si --> D[Confirmat a l'instant]
+    C -- No --> E[Sol·licitud a la primera preferencia]
+    E --> F{Professor accepta?}
+    F -- Si --> G[Tutor assignat]
+    F -- No --> H{Queden preferencies<br>sense vetar?}
+    H -- Si --> E
+    H -- No --> I[Llista esgotada]
+    I --> J[Administracio assigna a ma]
+    G --> K[Eleccio es pot tancar<br>quan tots tenen tutor]
+    J --> K
 ```
 
-Sin `SMTP_USER` y `SMTP_PASS`, el enlace de acceso se imprime en la consola del servidor.
+**Repetidors i pas de curs**, en tancar l'elecció:
 
-## Probar sin correos (temporal)
+```mermaid
+flowchart LR
+    X[Eleccio tancada] --> Y[Admin marca per classe:<br>no promociona / es dona de baixa]
+    Y --> Z[Confirmar]
+    Z --> P[Resta puja 1 curs,<br>conserva grup i tutor]
+    Z --> Q[No promociona:<br>conserva curs i historial]
+    Z --> R[Baixes i 4t:<br>compte eliminat]
+```
 
-Con `LOGIN_PRUEBA=1` en `.env`, un usuario que contenga un número y `prof` (`prof1`), `alm` (`alm1`) o `admn` (`admn1`) entra sin correo de confirmación. Si no existía, se crea como profesor, alumno o administrador. Las demás cuentas de administrador siguen necesitando el correo.
+---
 
-Cualquiera podría entrar así, también como administrador: quita esa línea antes de abrir la aplicación a otras personas.
+## Funcionalitats principals
 
-## Correo con Gmail
+| Per a qui | Què fa |
+|---|---|
+| **Alumnat** | Entra sense contrasenya per enllaç al correu · ordena professorat arrossegant (ratolí i tàctil) · fins a 2 vetos opcionals · veu el tutor de l'any anterior · s'autoconfirma si el repeteix · consulta el seu tutor i lloc de reunió |
+| **Professorat** | Accepta o rebutja sol·licituds · veu la seua llista d'alumnat tutoritzat · correu directe a un o a tots · defineix lloc de reunió · pot ser tutor de grup d'una o diverses classes, ho canvia quan vulga · mostra d'una ullada (donut) l'estat de la seua classe |
+| **Administració** | Convoca i tanca eleccions · assigna tutor a mà a qui es va quedar sense cap · dona d'alta professorat i administració · gestiona comptes i rols · exporta PDF amb tutors, departaments i llocs de reunió · executa el *pas de curs* amb revisió abans de confirmar |
+| **Sistema** | Recordatori diari automàtic (sense noms, només avís) · tot en temps real per WebSocket · base de dades SQLite amb migració automàtica · test suite d'extrem a extrem |
 
-1. Activa la verificación en dos pasos en la cuenta que enviará los correos.
-2. Crea una contraseña de aplicación en <https://myaccount.google.com/apppasswords>. En Google Workspace, el administrador del dominio debe tenerlas permitidas.
-3. Pon la cuenta en `SMTP_USER` y la contraseña de aplicación en `SMTP_PASS`.
-4. En producción, pon la URL pública con `https://` en `APP_URL`.
+La llista completa (142 funcionalitats verificades una a una) està en [`SUMMARY.md`](SUMMARY.md).
 
-## Cómo funciona
+---
 
-- **Acceso:** se escribe solo el usuario y llega un enlace de confirmación a `usuario@lescarolines.com`. Quien no está dado de alta entra como alumnado.
-- **Profesorado:** el administrador lo da de alta solo con el correo. En su primer acceso indica nombre, apellidos y departamento (lista `DEPARTMENTS` en `src/app.js`).
-- **Elección:** el alumno ordena al profesorado manteniendo pulsado y arrastrando, y puede vetar hasta 2 (opcional). La solicitud va a su primera preferencia. Si el profesor la rechaza, pasa sola a la siguiente. Los vetados nunca la reciben.
-- **Repetir tutor:** si un alumno pone primero al tutor que tuvo en la convocatoria anterior, queda confirmado directamente, sin que el profesor tenga que aceptarlo.
-- **Cierre:** no se puede cerrar la elección mientras falte por votar alguien con cuenta. Administración puede asignarle tutor a mano o eliminar su cuenta para desbloquearlo.
-- **Sin tutor:** administración asigna a mano a quien no contestó o fue rechazado por toda su lista.
-- **Alumno a mitad de curso:** con la elección cerrada, administración crea la cuenta y asigna tutor sin confirmación.
-- **Nueva convocatoria:** no cambia cursos ni cuentas. Las asignaciones anteriores dejan de estar vigentes, pero siguen guardadas en la base de datos. Cada alumno puede corregir su curso al votar.
-- **Pas de curs:** con la elección cerrada, administración marca por clase quién no promociona y quién se da de baja, y confirma tras revisar la lista. El resto sube un curso y conserva grupo. Las bajas y quienes acaban 4.º se eliminan. Quien no promociona conserva curso e historial. Se puede hacer una vez por elección cerrada.
-- **Tutoría de grupo:** cada profesor elige en su panel de qué grupo es tutor, o ninguno, y puede cambiarlo cuando quiera. Un grupo puede tener varios tutores. Ve un donut con el estado de su clase; al tocarlo, la lista de alumnos.
-- **Recordatorio diario:** a las `REMINDER_HOUR` (hora de Madrid) se avisa al profesorado con solicitudes pendientes y, con la elección abierta, a los tutores de grupo con alumnos sin votar. El correo no da nombres: solo pide comprobar el panel y lleva el enlace. Para enviarlo en el momento: `npm run recordatori`.
-- **Borrar respuesta:** con la elección abierta, administración puede borrar la respuesta de un alumno para que vuelva a votar.
-- **Datos del alumno:** en «Les meues dades» solo se muestran. Con «Editar» indica qué profesor lo tiene a su cargo; ese profesor lo ve al momento en su panel y lo confirma o lo rechaza, sin correo. Confirmado, el alumno puede cambiarlos una vez; queda guardado en `student_data_changes` quién confirmó y los datos de antes y después. Mientras vota, los edita en la propia papereta.
-- **Tiempo real:** cada cambio avisa por WebSocket a los clientes conectados, que vuelven a pedir sus datos a la API.
+## Stack tècnic
 
-## Estructura
+| Peça | Tecnologia |
+|---|---|
+| Backend | Node.js 22 + Express 5, sense framework pesat |
+| Base de dades | SQLite (`node:sqlite`), un sol arxiu |
+| Temps real | WebSocket natiu (`ws`) |
+| Correu | Nodemailer sobre SMTP de Gmail |
+| PDF | PDFKit, cartell A3 per tutor |
+| Frontend | HTML, CSS i JavaScript sense dependències de build, amb SortableJS per a l'arrossegar |
+| Tests | `node --test`, prova d'extrem a extrem de l'API |
 
-- `src/app.js`: rutas y permisos
-- `src/election.js`: reglas de la elección
-- `src/pdf.js`: cartel PDF en A3, una tabla por tutor; el alumnado sin tutor va en una hoja aparte que no se cuelga
-- `src/mail.js`: envío por SMTP
-- `src/live.js`: avisos por WebSocket
-- `src/reminders.js`: recordatorio diario
-- `src/db.js`: esquema SQLite (`data/tutoria.db`)
-- `public/`: frontend
-- `test/flujo.test.js`: prueba de extremo a extremo de la API
+Zero dependències de pagament. Tot programari lliure.
+
+---
+
+## Què necessitem de Digitalització
+
+1. **Un apartat en la web de l'institut** per a presentar-lo i un lloc on allotjar-lo, per exemple `lescarolines.com/tutories-personals`.
+2. **Un correu de l'institut** per als correus de verificació d'accés i els avisos (p. ex. `tutoria@lescarolines.com`), amb contrasenya d'aplicació habilitada per a enviar per SMTP.
+3. **Revisió del valencià** de tota la interfície — li demanarem a Blanca que revise l'ortografia abans d'obrir-ho al centre.
+
+> ⚠️ **Important per a la convocatòria d'eleccions**
+>
+> El sistema només compta com a "pendent de votar" qui ja té compte creat. Qui mai ha entrat no apareix en els gràfics ni bloqueja el tancament — "han votat tots" pot ser fals si falta algú per donar d'alta.
+>
+> Per això, **abans de cada convocatòria**, cada tutor de grup ha d'assegurar-se que tot el seu alumnat nou tinga correu de l'institut i compte de Tutoria Personal creat (n'hi ha prou que entren una vegada). Ho marcarem com a pas obligatori en el protocol de convocatòria.
+
+---
+
+## Continuar amb el desenvolupament
+
+**1. CSV de l'alumnat.** Açò ve de la nostra idea d'un *cens d'alumnat*: que administració puga pujar abans de cada convocatòria un CSV amb correu, nom, curs i grup de tot l'alumnat. Resoldria que el sistema sàpia de veritat qui falta per votar, fins i tot qui encara no ha entrat mai, i evitaria altes manuals repetides cada curs.
+
+Preguntem: **teniu alguna eina que ja traga un CSV així de Sèneca o d'un altre sistema del centre?** Si existeix un format ja fet, adaptem la nostra importació a eixe format en lloc de demanar-ne un de nou.
+
+**2. Noms de tots els departaments.** Ara mateix tenim esta llista en el codi, probablement incompleta o desactualitzada:
+
+<div align="center">
+
+| | | |
+|---|---|---|
+| Anglés | Biologia i Geologia | Castellà |
+| Clàssiques | Economia | Educació Física |
+| Educació Plàstica | Filosofia | Física i Química |
+| Francés | Geografia i Història | Informàtica |
+| Matemàtiques | Música | Orientació |
+| Religió | Tecnologia | Valencià |
+
+</div>
+
+Ens podeu confirmar el llistat oficial i complet de departaments de l'institut?
+
+---
+
+## Suggeriment: sistema modular
+
+Ja tenim la comunicació en temps real per WebSocket entre professorat i alumnat funcionant. Sobre eixa mateixa base es poden afegir altres mòduls de l'institut més avant (avisos, incidències, etc.) sense refer la infraestructura.
+
+---
+
+## Límits coneguts i què falta abans d'usar-ho de veritat
+
+- **Dades de menors.** Hi ha noms de menors i vetos, informació delicada. L'institut ha de decidir quant de temps es guarden i validar-ho amb el seu responsable de protecció de dades. Proposem esborrar els vetos en tancar cada elecció.
+- **Allotjament.** Fa falta un servidor amb HTTPS i còpies de seguretat de l'arxiu de base de dades.
+- **Correu real.** L'enviament per Gmail està programat però encara no provat amb un compte real de l'institut.
+- **Accés de prova.** Cal llevar `LOGIN_PRUEBA=1` de l'entorn abans d'obrir-ho a ningú més: amb eixa variable qualsevol entra sense correu, també com a administrador.
+- **Prova pilot.** Proposem provar-ho primer amb un sol curs abans d'obrir-ho a tot l'institut.
+
+---
+
+<div align="center">
+
+**Ho demanem per a este curs 2026-27.** Està fet, provat i llest per a una prova pilot — només necessitem lloc, correu i el vostre vistiplau.
+
+</div>
