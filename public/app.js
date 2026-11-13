@@ -842,7 +842,7 @@ function previewDialog(teacher) {
       <div><dt>${LLOC}</dt><dd>${teacher.meeting_place ? esc(teacher.meeting_place) : '<span class="dash">sense definir</span>'}</dd></div>
     </dl>
     <div class="dialog-actions">${composeAll(teacher.students)}<button type="button" class="btn primary" id="closePreview">Tancar</button></div>
-    <h3>Alumnes personals: ${teacher.students.length}</h3>
+    <h3>Alumnes tutoritzats: ${teacher.students.length}</h3>
     ${teacher.students.length ? `<table class="stack-table">${tutoredRows(teacher.students)}</table>` : '<p class="empty">Encara no té alumnes.</p>'}
   </dialog>`;
 }
