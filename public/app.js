@@ -137,7 +137,7 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 // Filas de "mis alumnos": comunes al panel del profesor y a la vista previa del administrador.
 const tutoredRows = (students) => `
-  <thead><tr><th>Alumne</th><th>Classe</th><th></th></tr></thead>
+  <thead><tr><th><span class="col">Alumne</span></th><th><span class="col">Classe</span></th><th></th></tr></thead>
   <tbody>${students.map((s) => `<tr>
     <td class="person">${esc(listName(s))}<span class="sub">${esc(emailOf(s))}</span></td>
     <td>${esc(classLabel(s))}</td>
@@ -231,6 +231,7 @@ function renderLogin() {
         <p class="lead">Tria qui vols que et tutoritze este curs.</p>
         ${emailField('username', "Correu de l'institut")}
         <button class="btn primary">Envia'm l'enllaç d'accés</button>
+        <p class="fine">En entrar, el centre tractarà les teues dades per a assignar-te tutor. Ho tens explicat a la <a href="/privacitat.html">política de privacitat</a>.</p>
         <p id="msg"></p>
       </form>
       <section class="panel how">
@@ -636,7 +637,7 @@ async function renderTeacher() {
       <div class="stack">
         ${data.editRequests.length ? card('Permisos per a canviar dades', `<p class="lead">Confirma només si este alumne està ara a càrrec teu.</p>
           <table class="stack-table">
-          <thead><tr><th>Alumne</th><th>Classe</th><th></th></tr></thead>
+          <thead><tr><th><span class="col">Alumne</span></th><th><span class="col">Classe</span></th><th></th></tr></thead>
           <tbody>${data.editRequests.map((r) => `<tr>
             <td class="person">${esc(listName(r))}</td><td>${esc(classLabel(r))}</td>
             <td class="end"><div class="cell-actions">
@@ -645,7 +646,7 @@ async function renderTeacher() {
             </div></td></tr>`).join('')}</tbody>
         </table>`, { meta: String(data.editRequests.length) }) : ''}
         ${card('Sol·licituds pendents', data.pending.length ? `<table class="stack-table">
-          <thead><tr><th>Alumne</th><th>Classe</th><th></th></tr></thead>
+          <thead><tr><th><span class="col">Alumne</span></th><th><span class="col">Classe</span></th><th></th></tr></thead>
           <tbody>${data.pending.map((r) => `<tr>
             <td class="person">${esc(listName(r))}</td><td>${esc(classLabel(r))}</td>
             <td class="end"><div class="cell-actions">
@@ -716,7 +717,7 @@ async function renderTeacherSearch() {
           <button class="btn primary">Buscar</button>
         </form>`)}
       ${card('Resultats', search ? (search.length ? `<table class="stack-table">
-        <thead><tr><th>Alumne</th><th>Classe</th><th>Tutor</th></tr></thead>
+        <thead><tr><th><span class="col">Alumne</span></th><th><span class="col">Classe</span></th><th><span class="col">Tutor</span></th></tr></thead>
         <tbody>${search.map((s) => `<tr><td class="person">${esc(listName(s))}</td><td>${esc(classLabel(s))}</td><td>${s.tutor ? esc(listName(s.tutor)) : '<span class="dash">sense tutor</span>'}</td></tr>`).join('')}</tbody>
       </table>` : '<p class="empty">Sense resultats.</p>') : '<p class="empty">Encara no has buscat cap alumne.</p>', { meta: search ? String(search.length) : '' })}
     </div>`;
@@ -820,7 +821,7 @@ function classBars(students, teacherName) {
         <span class="bar-count">${voted}<small>/${group.students.length}</small></span>
       </button>
       ${open ? `<div class="class-detail">${group.students.length ? `<table class="stack-table">
-        <thead><tr><th>Alumne</th><th>Estat</th><th>Tutor</th></tr></thead>
+        <thead><tr><th><span class="col">Alumne</span></th><th><span class="col">Estat</span></th><th><span class="col">Tutor</span></th></tr></thead>
         <tbody>${group.students.map((s) => `<tr><td class="person">${esc(listName(s))}</td><td>${stateTag(s.status)}</td><td>${s.tutorId ? esc(teacherName(s.tutorId)) : DASH}</td></tr>`).join('')}</tbody>
       </table>` : '<p class="empty">Sense alumnat.</p>'}</div>` : ''}`;
   }).join('');
@@ -1009,7 +1010,7 @@ function unassignedView(data, unassigned) {
   if (!election) return `${titleRow('Alumnat sense tutor')}<div class="column narrow" style="margin-inline:0"><section class="panel"><p class="empty">Encara no s'han convocat eleccions.</p></section></div>`;
   return `${titleRow('Alumnat sense tutor', unassigned.length ? plural(unassigned.length, 'alumne sense tutor.', 'alumnes sense tutor.') : '')}
     ${panel('sense-tutor-llista', 'Assignar tutor', unassigned.length ? `<table class="stack-table">
-      <thead class="sticky"><tr><th>Alumne</th><th>Classe</th><th>Estat</th><th>Assignar</th></tr></thead>
+      <thead class="sticky"><tr><th><span class="col">Alumne</span></th><th><span class="col">Classe</span></th><th><span class="col">Estat</span></th><th><span class="col">Assignar</span></th></tr></thead>
       <tbody>${unassigned.map((s) => `<tr>
         <td class="person">${esc(listName(s))}</td><td>${esc(classLabel(s))}</td><td>${stateTag(s.status)}</td>
         <td class="end"><div class="cell-actions"><select class="compact" id="assign-${s.id}" aria-label="Tutor de ${esc(listName(s))}">${teacherOptions(s.allowedTeacherIds)}</select>
@@ -1022,7 +1023,7 @@ function studentsView(data, teacherName) {
   const { election, open } = data;
   const teacherOptions = `<option value="">— Professor —</option>` + data.teachers.map((t) => `<option value="${t.id}">${esc(listName(t))}</option>`).join('');
   const table = panel('alumnat', 'Comptes d\'alumnat', data.students.length ? `<table class="stack-table">
-    <thead class="sticky"><tr><th>Alumne</th><th>Classe</th><th>Tutor</th><th>Resposta</th><th>Nivell</th><th></th></tr></thead>
+    <thead class="sticky"><tr><th><span class="col">Alumne</span></th><th><span class="col">Classe</span></th><th><span class="col">Tutor</span></th><th><span class="col">Resposta</span></th><th><span class="col">Nivell</span></th><th></th></tr></thead>
     <tbody>${data.students.map((s) => `<tr>
       <td class="person">${esc(listName(s))}<span class="sub">${esc(emailOf(s))}</span></td>
       <td>${esc(classLabel(s))}</td>
@@ -1065,7 +1066,7 @@ function teachersView(data) {
     <div class="stack">
       ${createAccountPanel('profesor', true)}
       ${panel('professorat', 'Comptes de professorat', data.teachers.length ? `<table class="stack-table">
-        <thead class="sticky"><tr><th>Professor</th><th>Departament</th><th>Tutor de grup</th><th class="n">Alumnes</th><th>Nivell</th><th></th></tr></thead>
+        <thead class="sticky"><tr><th><span class="col">Professor</span></th><th><span class="col">Departament</span></th><th><span class="col">Tutor de grup</span></th><th class="n"><span class="col">Alumnes</span></th><th><span class="col">Nivell</span></th><th></th></tr></thead>
         <tbody>${data.teachers.map((t) => `<tr>
           <td class="person"><span class="who-cell">${chip(t)}<button type="button" class="link" data-preview="${t.id}">${esc(listName(t))}</button></span></td>
           <td>${t.department ? esc(t.department) : DASH}</td>
@@ -1080,7 +1081,7 @@ function adminsView(data) {
   return `${titleRow('Administradors')}
     <div class="split">
       ${panel('administradors', 'Comptes d\'administració', `<table class="stack-table">
-        <thead><tr><th>Nom</th><th>Nivell</th><th></th></tr></thead>
+        <thead><tr><th><span class="col">Nom</span></th><th><span class="col">Nivell</span></th><th></th></tr></thead>
         <tbody>${data.admins.map((a) => `<tr><td class="person">${esc(listName(a))}<span class="sub">${esc(emailOf(a))}</span></td>${accountActions(a, 'admin', data)}</tr>`).join('')}</tbody>
       </table>`, { meta: String(data.admins.length) })}
       <div class="stack rail-sticky">${createAccountPanel('admin')}</div>
@@ -1286,6 +1287,26 @@ function connectLive() {
   socket.onclose = () => setTimeout(connectLive, opened ? 1000 : 5000);
 }
 
+// --- Aviso de cookies ---
+// Solo hay cookie de sesión y preferencias locales (técnicas): basta con informar, no hace falta pedir permiso.
+const COOKIES_KEY = 'tutoria.avisCookies';
+function cookieNotice() {
+  try {
+    if (localStorage.getItem(COOKIES_KEY)) return;
+  } catch { /* sin almacenamiento: se enseña cada vez */ }
+  const bar = document.createElement('div');
+  bar.className = 'cookie-bar';
+  bar.setAttribute('role', 'region');
+  bar.setAttribute('aria-label', 'Avís de galetes');
+  bar.innerHTML = `<p>Fem servir només la galeta necessària per a mantindre't la sessió oberta i guardem algunes preferències en este navegador. No hi ha publicitat ni analítica. <a href="/cookies.html">Més informació</a></p>
+    <button type="button" class="btn primary">D'acord</button>`;
+  bar.querySelector('button').onclick = () => {
+    try { localStorage.setItem(COOKIES_KEY, '1'); } catch { /* res */ }
+    bar.remove();
+  };
+  document.body.append(bar);
+}
+
 // --- Arranque ---
 
 window.addEventListener('hashchange', async () => {
@@ -1298,6 +1319,8 @@ window.addEventListener('hashchange', async () => {
     await ask(err.message, { alertOnly: true });
   }
 });
+
+cookieNotice();
 
 (async () => {
   const data = await api('/api/me');
