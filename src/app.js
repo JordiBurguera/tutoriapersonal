@@ -2,9 +2,9 @@ import express from 'express';
 import { createHash, randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { tx } from './db.js';
-import { audit, fullName, madridDate, notify, unreadCount } from './activity.js';
+import { audit, fullName, notify, unreadCount } from './activity.js';
 import {
-  acceptingAnswers, advance, ballotOf, byLastName, deadlinePassed, defaultLimit, deleteUser, displayName,
+  advance, ballotOf, byLastName, defaultLimit, deleteUser, displayName,
   electionStats, isFull, isOpen, latestElection, listStudents, listTeachers, previousTutor, releaseIfFull, studentStatus,
   studentsOfTeacher, teacherLimit, tutorOf, vetoedTeacherIds,
 } from './election.js';
@@ -65,14 +65,6 @@ const ROLE_NAME = { alumno: 'Alumnat', profesor: 'Professor', admin: 'Administra
 const ORDINAL = { 1: '1r', 2: '2n', 3: '3r', 4: '4t' };
 const classLabelOf = (s) => (s.curso ? `${ORDINAL[s.curso]} ${s.grupo}` : '');
 
-// Fecha límite: milisegundos en el futuro, o null para quitarla.
-function parseDeadline(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const ms = Number(value);
-  if (!Number.isFinite(ms)) throw httpError(400, 'Data límit no vàlida.');
-  if (ms <= Date.now()) throw httpError(400, 'La data límit ha de ser en el futur.');
-  return Math.round(ms);
-}
 
 // TEMPORAL, solo para pruebas: ver LOGIN_PRUEBA en .env.example.
 function testRole(username) {
@@ -275,7 +267,6 @@ export function createApp({ db, sendMail, appUrl, testLogin = false, broadcast =
     res.json({
       status,
       electionTitle: election?.title ?? null,
-      deadline: isOpen(election) ? election.deadline ?? null : null,
       tutor: election ? tutorOf(db, election.id, req.user.id) ?? null : null,
       // Deja de enviarse en cuanto hay tutor definitivo.
       answer: status === 'en_proceso' || status === 'agotada' ? ballotOf(db, election.id, req.user.id) : null,
@@ -336,7 +327,6 @@ export function createApp({ db, sendMail, appUrl, testLogin = false, broadcast =
   app.post('/api/alumno/eleccion', requireRole('alumno'), (req, res) => {
     const election = latestElection(db);
     if (!isOpen(election)) throw httpError(409, 'No hi ha eleccions obertes.');
-    if (!acceptingAnswers(election)) throw httpError(409, 'El termini per a contestar ha acabat.');
     const { firstName, lastName } = requireNames(req.body);
     const { curso, grupo } = requireClass(req.body);
     const { vetoes, ranking } = req.body;
@@ -550,8 +540,7 @@ export function createApp({ db, sendMail, appUrl, testLogin = false, broadcast =
       me: req.user.id,
       election: election ?? null,
       open: isOpen(election),
-      deadlinePassed: isOpen(election) && deadlinePassed(election),
-      canClose: stats.unanswered === 0 || deadlinePassed(election),
+      canClose: stats.unanswered === 0,
       stats,
       promotion: promotionState(election),
       defaultLimit: defaultLimit(db),
@@ -575,30 +564,13 @@ export function createApp({ db, sendMail, appUrl, testLogin = false, broadcast =
     if (!title) throw httpError(400, 'Posa-li un títol a les eleccions.');
     if (listTeachers(db).length < 1) throw httpError(409, 'Cal almenys un professor.');
 
-    const deadline = parseDeadline(req.body?.deadline);
-
     tx(db, () => {
       // Una marca sin confirmar no debe aplicarse por sorpresa al año siguiente.
       db.prepare('UPDATE users SET promotion_mark = NULL').run();
-      db.prepare('INSERT INTO elections (title, opened_at, deadline) VALUES (?, ?, ?)').run(title, Date.now(), deadline);
-      const text = `S'han obert les eleccions de tutoria personal «${title}».${deadline ? ` Tens fins al ${madridDate(deadline)} per a contestar.` : ''}`;
+      db.prepare('INSERT INTO elections (title, opened_at) VALUES (?, ?)').run(title, Date.now());
+      const text = `S'han obert les eleccions de tutoria personal «${title}».`;
       for (const { id } of db.prepare(`SELECT id FROM users WHERE role = 'alumno'`).all()) notify(db, id, text);
-      audit(db, req.user, 'Eleccions convocades', `${title}${deadline ? ` · termini: ${madridDate(deadline)}` : ''}`);
-    });
-    res.json({ ok: true });
-  });
-
-  app.put('/api/admin/termini', requireRole('admin'), (req, res) => {
-    const election = latestElection(db);
-    if (!isOpen(election)) throw httpError(409, 'No hi ha eleccions obertes.');
-    const deadline = parseDeadline(req.body?.deadline);
-    tx(db, () => {
-      db.prepare('UPDATE elections SET deadline = ? WHERE id = ?').run(deadline, election.id);
-      if (deadline) {
-        const waiting = listStudents(db, { ...election, deadline }).filter((s) => s.status === 'por_contestar');
-        for (const s of waiting) notify(db, s.id, `Termini per a contestar les eleccions: ${madridDate(deadline)}.`);
-      }
-      audit(db, req.user, deadline ? 'Termini canviat' : 'Termini eliminat', deadline ? madridDate(deadline) : '');
+      audit(db, req.user, 'Eleccions convocades', title);
     });
     res.json({ ok: true });
   });
@@ -664,7 +636,7 @@ export function createApp({ db, sendMail, appUrl, testLogin = false, broadcast =
   app.post('/api/admin/terminar', requireRole('admin'), (req, res) => {
     const election = latestElection(db);
     if (!isOpen(election)) throw httpError(409, 'No hi ha eleccions obertes.');
-    if (!deadlinePassed(election) && electionStats(listStudents(db, election)).unanswered > 0) {
+    if (electionStats(listStudents(db, election)).unanswered > 0) {
       throw httpError(409, 'No es poden confirmar les eleccions: encara falta alumnat per votar.');
     }
     db.prepare('UPDATE elections SET closed_at = ? WHERE id = ?').run(Date.now(), election.id);

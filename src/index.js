@@ -40,7 +40,14 @@ if (testLogin) console.warn('LOGIN_PRUEBA activo: los usuarios con "prof", "alm"
 const live = createLive();
 const sendMail = createMailer();
 const app = createApp({ db, sendMail, appUrl, testLogin, broadcast: live.broadcast });
-const server = app.listen(port, () => {
+// Express 5 no lanza el error si el puerto está ocupado: se lo pasa a esta función, y sin esto se cerraba sin avisar.
+const server = app.listen(port, (err) => {
+  if (err) {
+    const why = err.code === 'EADDRINUSE' ? 'ya está en uso (seguramente hay otro servidor encendido)'
+      : err.code === 'EACCES' ? 'Windows lo tiene bloqueado' : err.message;
+    console.error(`No se ha podido abrir el puerto ${port}: ${why}. Cambia PORT y APP_URL en .env (por ejemplo, a 3001) o cierra el otro programa.`);
+    process.exit(1);
+  }
   console.log(`Tutoría personal en ${appUrl}`);
 });
 live.attach(server, app.locals.userFromCookie);

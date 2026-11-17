@@ -1,6 +1,5 @@
-import { madridDate, notify } from './activity.js';
 import { DOMAIN } from './app.js';
-import { acceptingAnswers, isOpen, latestElection, listStudents } from './election.js';
+import { isOpen, latestElection, listStudents } from './election.js';
 
 const CHECK_EVERY_MS = 60_000;
 
@@ -74,31 +73,8 @@ export async function reminderTick({ db, sendMail, appUrl, hour, now = new Date(
   return sendReminders({ db, sendMail, appUrl });
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-// Un día antes de la fecha límite, aviso (campana y correo) a quien aún no ha contestado. Una sola vez por fecha.
-export async function deadlineTick({ db, sendMail, appUrl, now = Date.now() }) {
-  const election = latestElection(db);
-  if (!election?.deadline || !acceptingAnswers(election, now) || election.deadline - now > DAY_MS) return null;
-  const key = `${election.id}:${election.deadline}`;
-  if (db.prepare(`SELECT value FROM meta WHERE key = 'deadline_warned'`).get()?.value === key) return null;
-  db.prepare(`INSERT INTO meta (key, value) VALUES ('deadline_warned', ?)
-    ON CONFLICT (key) DO UPDATE SET value = excluded.value`).run(key);
-  const waiting = listStudents(db, election).filter((s) => s.status === 'por_contestar');
-  const text = `Queda menys d'un dia per a triar tutor personal. El termini acaba el ${madridDate(election.deadline)}.`;
-  for (const student of waiting) {
-    notify(db, student.id, text);
-    try {
-      await sendMail({ to: `${student.username}@${DOMAIN}`, subject: 'Tutoria personal: últim dia per a contestar', text: `${text}\n\n${appUrl}/\n` });
-    } catch (err) {
-      console.error(`Error enviando aviso de termini a ${student.username}:`, err.message);
-    }
-  }
-  return waiting.length;
-}
-
 export function startReminders(options) {
-  const tick = () => Promise.all([reminderTick(options), deadlineTick(options)])
+  const tick = () => reminderTick(options)
     .catch((err) => console.error('Error en el recordatorio:', err));
   tick();
   setInterval(tick, CHECK_EVERY_MS).unref();

@@ -105,9 +105,6 @@ export function buildReport(db) {
     { v: stats.waiting, s: S.totalNum }, { v: stats.unanswered, s: S.totalNum },
     { v: stats.students ? (stats.confirmed + stats.waiting) / stats.students : 0, s: S.totalPct },
   ] });
-  if (election?.deadline) {
-    resum.rows.push({ cells: [] }, { cells: [{ v: `Termini per a contestar: ${madrid(election.deadline)}`, s: { italic: true, color: COLORS.muted } }] });
-  }
 
   // --- Alumnat ---
   const alumnatHead = ['Cognoms', 'Nom', 'Correu', 'Classe', 'Estat', 'Tutor', 'Departament', 'Lloc de reunió'];

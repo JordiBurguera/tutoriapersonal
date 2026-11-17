@@ -3,7 +3,6 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.js';
 import { openDb } from '../src/db.js';
-import { deadlineTick } from '../src/reminders.js';
 import { readTable, writeWorkbook } from '../src/xlsx.js';
 import { parseCurso, parseGrupo } from '../src/importar.js';
 
@@ -53,9 +52,7 @@ test('preparación: profesorado y convocatoria', async () => {
     profs[u] = await login(u);
     await profs[u]('/api/profesor/perfil', 'PUT', { firstName: u === 'prof.a' ? 'Anna' : 'Berta', lastName: 'Prof', department: 'Matemàtiques' });
   }
-  // Fecha límite en el pasado: rechazada.
-  assert.equal((await admin('/api/admin/convocar', 'POST', { title: 'Curs X', deadline: Date.now() - 1000 })).status, 400);
-  assert.equal((await admin('/api/admin/convocar', 'POST', { title: 'Curs X', deadline: Date.now() + 3 * 86400000 })).status, 200);
+  assert.equal((await admin('/api/admin/convocar', 'POST', { title: 'Curs X' })).status, 200);
 });
 
 test('límite: un profesor lleno no recibe más solicitudes y las pendientes pasan al siguiente', async () => {
@@ -97,37 +94,19 @@ test('límite: un profesor lleno no recibe más solicitudes y las pendientes pas
   assert.ok(mails.some((m) => m.to === `${who}@lescarolines.com` && m.subject === 'Ja tens tutor personal'));
 });
 
-test('fecha límite: fuera de plazo no se puede votar y se puede cerrar', async () => {
+test('sin fecha límite: mientras falte alumnado no se puede cerrar', async () => {
   const late = await login('alm.tard');
-  assert.equal((await admin('/api/admin')).data.canClose, false);
-  // Se adelanta el plazo directamente en la base de datos.
-  db.prepare('UPDATE elections SET deadline = ?').run(Date.now() - 1000);
-  const view = (await late('/api/alumno')).data;
-  assert.equal(view.status, 'sin_respuesta');
-  const r = await late('/api/alumno/eleccion', 'POST', { firstName: 'Tard', lastName: 'X', curso: 1, grupo: 'B', vetoes: [], ranking: [id('prof.a'), id('prof.b')] });
-  assert.equal(r.status, 409);
-  assert.match(r.data.error, /termini/);
-  const data = (await admin('/api/admin')).data;
-  assert.equal(data.deadlinePassed, true);
-  assert.equal(data.canClose, true);
-  assert.equal(statusOf(data, 'alm.tard'), 'sin_respuesta');
-  // Nuevo plazo en el futuro: vuelve a poder votar.
-  assert.equal((await admin('/api/admin/termini', 'PUT', { deadline: Date.now() + 3600 * 1000 })).status, 200);
   assert.equal((await late('/api/alumno')).data.status, 'por_contestar');
-});
-
-test('aviso del último día: una sola vez y solo a quien no ha contestado', async () => {
-  const before = mails.length;
-  const sent = await deadlineTick({ db, sendMail: async (m) => mails.push(m), appUrl: 'http://test' });
-  assert.equal(sent, 1); // alm.tard
-  assert.equal(mails.length, before + 1);
-  assert.equal(await deadlineTick({ db, sendMail: async (m) => mails.push(m), appUrl: 'http://test' }), null);
+  assert.equal((await late('/api/alumno')).data.deadline, undefined);
+  const data = (await admin('/api/admin')).data;
+  assert.equal(data.canClose, false);
+  assert.equal((await admin('/api/admin/termini', 'PUT', { deadline: Date.now() + 3600 * 1000 })).status, 404);
 });
 
 test('historial: registra las acciones y solo lo ve administración', async () => {
   const items = (await admin('/api/admin/historial')).data.items;
   const actions = items.map((i) => i.action);
-  for (const action of ['Eleccions convocades', 'Límit de professor canviat', 'Sol·licitud acceptada', 'Resposta enviada', 'Termini canviat']) {
+  for (const action of ['Eleccions convocades', 'Límit de professor canviat', 'Sol·licitud acceptada', 'Resposta enviada']) {
     assert.ok(actions.includes(action), action);
   }
   assert.equal((await profs['prof.a']('/api/admin/historial')).status, 403);
