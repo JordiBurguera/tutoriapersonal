@@ -17,7 +17,7 @@ function loadClosedPanels() {
 }
 
 // Lo que debe sobrevivir a un repintado por aviso en tiempo real.
-const ui = { filters: {}, importPreview: null, importResult: null, limitSaved: false, deadlineSaved: false, history: null, previewId: null, classKey: null, searchQuery: '', meetingSaved: false, groupSaved: false, groupOpen: false, closedPanels: loadClosedPanels(), promotionClasses: new Set(), promotionReview: false, promotionResult: null, navOpen: false, counts: {}, dataSaved: false, studentVoting: true };
+const ui = { filters: {}, importPreview: null, importResult: null, limitSaved: false, history: null, previewId: null, classKey: null, searchQuery: '', meetingSaved: false, groupSaved: false, groupOpen: false, closedPanels: loadClosedPanels(), promotionClasses: new Set(), promotionReview: false, promotionResult: null, navOpen: false, counts: {}, dataSaved: false, studentVoting: true };
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const ORDINAL = { 1: '1r', 2: '2n', 3: '3r', 4: '4t' };
@@ -159,17 +159,6 @@ const fmtShort = (ms) => new Intl.DateTimeFormat('ca-ES', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
 }).format(new Date(ms));
 
-// «queden 2 dies i 3 h»
-function remaining(ms) {
-  const diff = ms - Date.now();
-  if (diff <= 0) return 'el termini ha acabat';
-  const minutes = Math.floor(diff / 60000);
-  const days = Math.floor(minutes / 1440);
-  const hours = Math.floor((minutes % 1440) / 60);
-  if (days >= 1) return `${days === 1 ? 'queda 1 dia' : `queden ${days} dies`}${hours ? ` i ${hours} h` : ''}`;
-  if (hours >= 1) return `${hours === 1 ? 'queda 1 hora' : `queden ${hours} hores`}`;
-  return minutes <= 1 ? 'queda menys d\'un minut' : `queden ${minutes} minuts`;
-}
 
 // «fa 5 min», «ahir a les 10:30»
 function ago(ms) {
@@ -181,7 +170,6 @@ function ago(ms) {
 }
 
 // Valor de <input type="datetime-local"> a partir de milisegundos, en hora local.
-const toLocalInput = (ms) => new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
 // --- Modo oscuro ---
 
@@ -643,7 +631,6 @@ function renderBallot(data) {
   previousTutorId = data.previousTutor?.id ?? null;
   app.innerHTML = `
     ${titleRow(esc(data.electionTitle), "Ordena el professorat i envia la teua resposta. Quan l'envies no podràs canviar-la.")}
-    ${data.deadline ? `<p class="deadline-banner ${data.deadline - Date.now() < 86400000 ? 'soon' : ''}">${icon('clock')}<span>Tens fins al <strong>${esc(fmtDate(data.deadline, { weekday: 'long' }))}</strong> per a contestar · ${esc(remaining(data.deadline))}.</span></p>` : ''}
     <form id="ballot">
       ${card('Les teues dades', `<div class="fields-row">
         <div class="field"><label for="firstName">Nom</label><input id="firstName" required maxlength="60" value="${esc(data.firstName)}"></div>
@@ -1124,9 +1111,6 @@ function electionFinding({ election, open, stats }, unassigned) {
   if (!election) return "Encara no s'han convocat eleccions.";
   if (open) {
     if (!stats.students) return 'Encara no ha entrat cap alumne.';
-    if (stats.unanswered && election.deadline && election.deadline < Date.now()) {
-      return `<strong>El termini ha acabat.</strong> ${plural(stats.unanswered, 'alumne no ha', 'alumnes no han')} contestat, però ja pots tancar les eleccions.`;
-    }
     if (stats.unanswered) return `<strong>${stats.unanswered === 1 ? 'Falta 1 alumne' : `Falten ${stats.unanswered} alumnes`} per votar.</strong> Les eleccions no es poden tancar fins que voten.`;
     return "<strong>Ja ha votat tot l'alumnat.</strong> Ja es poden tancar les eleccions.";
   }
@@ -1137,30 +1121,8 @@ function electionFinding({ election, open, stats }, unassigned) {
 
 const convokeForm = () => `<form id="open" class="convoke">
   <input id="title" required maxlength="100" aria-label="Títol de les eleccions" placeholder="Títol, ex.: Curs 2026-27">
-  <label class="inline-field" title="Opcional: a partir d'esta data l'alumnat ja no podrà contestar">Termini
-    <input id="newDeadline" type="datetime-local" aria-label="Termini per a contestar (opcional)"></label>
   <button class="btn primary">Convocar eleccions</button>
 </form>`;
-
-const deadlineMs = (id) => {
-  const value = document.getElementById(id)?.value;
-  return value ? new Date(value).getTime() : null;
-};
-
-function deadlineCard(election) {
-  const passed = election.deadline && election.deadline < Date.now();
-  return panel('termini', 'Termini per a contestar', `
-    ${election.deadline
-      ? `<p class="deadline-line ${passed ? 'over' : ''}">${icon('clock')}<span><strong>${esc(fmtDate(election.deadline, { weekday: 'long' }))}</strong><br>${esc(remaining(election.deadline))}</span></p>`
-      : '<p class="lead">Sense termini: l\'alumnat pot contestar fins que tanques les eleccions.</p>'}
-    <form id="deadlineForm" class="joined" style="margin-top:12px">
-      <input id="deadlineInput" type="datetime-local" aria-label="Nou termini" value="${election.deadline && !passed ? toLocalInput(election.deadline) : ''}">
-      <button class="btn outline">Guardar</button>
-    </form>
-    ${election.deadline ? '<button type="button" class="btn quiet" id="clearDeadline" style="margin-top:6px">Treure el termini</button>' : ''}
-    ${ui.deadlineSaved ? '<p class="msg-ok">Termini guardat. L\'alumnat pendent ha rebut un avís.</p>' : ''}
-    <p class="panel-note">Un dia abans, l'alumnat que no haja contestat rep un avís i un correu.</p>`);
-}
 
 const excelButton = (label = 'Descarregar Excel') => `<a class="btn outline" href="/api/admin/informe.xlsx" title="Informe complet en Excel: resum, alumnat, professorat i alumnat per tutor">${icon('download')}${esc(label)}</a>`;
 
@@ -1181,7 +1143,7 @@ function electionsView(data, unassigned, teacherName) {
   const urgency = { agotada: 0, sin_respuesta: 1 };
   const nextUp = [...unassigned].sort((a, b) => (urgency[a.status] ?? 2) - (urgency[b.status] ?? 2)).slice(0, 3);
   return `${titleRow(heading, electionFinding(data, unassigned), actions)}
-    <div class="split stretch">
+    <div class="split">
       ${panel('cens', 'Cens per classe', `
         <ul class="key">${SEGMENTS.map((s) => `<li>${unit(s.key)}${esc(s.label)}</li>`).join('')}</ul>
         <div class="census">${classBars(data.students, teacherName)}</div>`)}
@@ -1189,7 +1151,6 @@ function electionsView(data, unassigned, teacherName) {
         ${panel('participacio', 'Participació', `
           <div class="ring-block">${donut(stats)}${legend(stats)}</div>
           <p class="panel-note">Compta l'alumnat que ha iniciat sessió o que s'ha importat.</p>`)}
-        ${open ? deadlineCard(election) : ''}
         <div class="grow-last" style="display:contents">
         ${panel('sense-tutor', 'Sense tutor', nextUp.length ? `
           <ul class="rows">${nextUp.map((s) => `<li><div class="grow">${esc(listName(s))}<span class="sub">${esc(classLabel(s))}</span></div>${stateTag(s.status)}</li>`).join('')}</ul>
@@ -1389,9 +1350,7 @@ function statsView(data) {
 
   const full = data.teachers.filter((t) => t.limit && t.students.length >= t.limit).length;
   const rejected = data.teachers.reduce((n, t) => n + t.rejectedCount, 0);
-  const deadline = election.deadline && data.open
-    ? kpi('Termini', esc(remaining(election.deadline).replace(/^queden? /, '')), esc(fmtDate(election.deadline)), election.deadline < Date.now() ? 'tone-alert' : 'tone-violet')
-    : kpi('Estat', data.open ? 'Obertes' : 'Tancades', esc(election.title), 'tone-violet');
+  const state = kpi('Estat', data.open ? 'Obertes' : 'Tancades', esc(election.title), 'tone-violet');
 
   return `${titleRow('Estadístiques', esc(election.title), excelButton())}
     <div class="kpis">
@@ -1400,7 +1359,7 @@ function statsView(data) {
       ${kpi('Confirmats', stats.confirmed, `${pct(stats.confirmed, stats.students)}% del total`, 'tone-good')}
       ${kpi("A l'espera", stats.waiting, '', 'tone-warn')}
       ${kpi('Sense contestar', stats.unanswered)}
-      ${deadline}
+      ${state}
     </div>
     <div class="split even stats-grid">
       ${card('Participació per classe', `<ul class="key">${SEGMENTS.map((s) => `<li>${unit(s.key)}${esc(s.label)}</li>`).join('')}</ul>${classBarsHtml || '<p class="empty">Sense alumnat.</p>'}`)}
@@ -1481,23 +1440,6 @@ function bindAdmin(data, teacherById) {
 
   bindFilters();
 
-  on('deadlineForm', 'onsubmit', (event) => {
-    event.preventDefault();
-    const deadline = deadlineMs('deadlineInput');
-    if (!deadline) return ask('Tria una data i hora.', { alertOnly: true });
-    act(async () => {
-      await api('/api/admin/termini', 'PUT', { deadline });
-      ui.deadlineSaved = true;
-    });
-  });
-  on('clearDeadline', 'onclick', async () => {
-    if (await ask("Treure el termini? L'alumnat podrà contestar fins que tanques les eleccions.", { confirmLabel: 'Treure' })) {
-      act(async () => {
-        await api('/api/admin/termini', 'PUT', { deadline: null });
-        ui.deadlineSaved = false;
-      });
-    }
-  });
   on('limitForm', 'onsubmit', (event) => {
     event.preventDefault();
     act(async () => {
@@ -1543,10 +1485,8 @@ function bindAdmin(data, teacherById) {
     if (election) warnings.push('Les assignacions de tutor actuals deixaran de ser vigents.');
     if (data.promotion === 'disponible') warnings.push("Encara no s'ha fet el pas de curs: l'alumnat mantindrà el curs actual i es perdran les anomalies marcades.");
     const title = document.getElementById('title').value;
-    const deadline = deadlineMs('newDeadline');
-    if (deadline) warnings.push(`L'alumnat podrà contestar fins al ${fmtDate(deadline, { weekday: 'long' })}.`);
     if (await ask(`Convocar les eleccions? ${warnings.join(' ')}`, { confirmLabel: 'Convocar eleccions' })) {
-      act(() => api('/api/admin/convocar', 'POST', { title, deadline }));
+      act(() => api('/api/admin/convocar', 'POST', { title }));
     }
   });
   on('create', 'onsubmit', (event) => {

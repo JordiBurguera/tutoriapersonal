@@ -585,9 +585,11 @@ th .col {
   font-weight: 700;
   letter-spacing: .01em;
 }
-thead.sticky th { background: rgba(238, 243, 251, .55); }
+/* Sin franja detrás de las cabeceras: solo se ven las cápsulas. */
+thead.sticky th { background: transparent; }
+thead.sticky th { position: static; }
 
-thead.sticky th { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+thead.sticky th { backdrop-filter: none; -webkit-backdrop-filter: none; }
 td { border-top-color: rgba(111, 130, 165, .15); }
 tr.marked td { background: rgba(255, 248, 224, .72); }
 .bar-row:hover, .bar-row[aria-expanded="true"] { background: rgba(220, 231, 249, .7); }
@@ -767,18 +769,9 @@ select.filter-select, .cell-actions select.filter-select { height: 38px; padding
 .filter-count { min-width: 48px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .filter-bar .btn.quiet { height: 32px; border-radius: 999px; }
 
-/* Termini */
 .convoke { align-items: center; }
 .inline-field { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .inline-field input:not([type="hidden"]) { width: 200px; height: var(--control-height); }
-.deadline-line { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 16px; background: linear-gradient(120deg, rgba(222, 232, 251, .8), rgba(233, 226, 250, .7)); line-height: 20px; }
-.deadline-line .ico { width: 18px; height: 18px; margin-top: 1px; color: #3d5fb0; }
-.deadline-line.over { background: rgba(251, 225, 227, .85); color: #8b1f28; }
-.deadline-line.over .ico { color: #b4313a; }
-.deadline-banner { display: flex; align-items: center; gap: 10px; margin: -8px 0 16px; padding: 12px 18px; border: 1px solid rgba(255, 255, 255, .86); border-radius: 999px; background: linear-gradient(110deg, rgba(255, 255, 255, .7), rgba(226, 234, 248, .78)); box-shadow: 0 6px 20px rgba(39, 58, 95, .1); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-.deadline-banner .ico { width: 18px; height: 18px; color: #3d5fb0; }
-.deadline-banner.soon { background: linear-gradient(110deg, rgba(255, 244, 222, .92), rgba(255, 232, 205, .88)); }
-.deadline-banner.soon .ico { color: #b06a00; }
 
 /* Límit i ocupació */
 .load { display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
@@ -857,7 +850,6 @@ table.history td.detail { color: #3b4559; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .inline-field { width: 100%; }
   .inline-field input:not([type="hidden"]) { flex: 1; width: auto; }
-  .deadline-banner { border-radius: 18px; }
   .filter-bar select.filter-select { flex: 1 1 140px; }
 }
 
@@ -913,7 +905,7 @@ table.history td.detail { color: #3b4559; }
 [data-theme="dark"] .email-field input:not([type="hidden"]) { background: transparent; }
 [data-theme="dark"] .email-field .domain { color: #c9d5f2; }
 [data-theme="dark"] th .col { border-color: rgba(255, 255, 255, .12); background: linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(126, 163, 242, .14)); color: #e3e9f7; box-shadow: none; }
-[data-theme="dark"] thead.sticky th { background: rgba(18, 24, 38, .8); }
+[data-theme="dark"] thead.sticky th { background: transparent; }
 [data-theme="dark"] td { border-top-color: rgba(255, 255, 255, .07); }
 [data-theme="dark"] tr.marked td { background: rgba(255, 210, 122, .1); }
 [data-theme="dark"] tr.row-error td { background: rgba(255, 143, 149, .1); }
@@ -944,11 +936,6 @@ table.history td.detail { color: #3b4559; }
 [data-theme="dark"] .seg.waiting { background: #3f5d99; }
 [data-theme="dark"] .seg.unanswered { background: rgba(255, 255, 255, .14); }
 [data-theme="dark"] table.history td.detail { color: #c2cbdc; }
-[data-theme="dark"] .deadline-line { background: rgba(126, 163, 242, .14); }
-[data-theme="dark"] .deadline-line .ico, [data-theme="dark"] .deadline-banner .ico { color: #9db8ff; }
-[data-theme="dark"] .deadline-line.over { background: rgba(255, 143, 149, .14); color: #ffb0b4; }
-[data-theme="dark"] .deadline-banner { border-color: rgba(255, 255, 255, .1); background: rgba(26, 33, 50, .72); }
-[data-theme="dark"] .deadline-banner.soon { background: rgba(120, 82, 14, .45); }
 [data-theme="dark"] .file-pick { background: rgba(255, 255, 255, .04); color: #b7cbff; border-color: rgba(126, 163, 242, .5); }
 [data-theme="dark"] .file-pick:hover { background: rgba(126, 163, 242, .12); }
 [data-theme="dark"] .profile-grid > div { border-color: rgba(255, 255, 255, .1); background: linear-gradient(135deg, rgba(255, 255, 255, .06), rgba(126, 163, 242, .1)); box-shadow: none; }

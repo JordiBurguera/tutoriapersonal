@@ -22,12 +22,8 @@ export const listTeachers = (db) =>
 
 export const isOpen = (election) => Boolean(election) && election.closed_at === null;
 
-// --- Fecha límite ---
-
-export const deadlinePassed = (election, now = Date.now()) => Boolean(election?.deadline) && now > election.deadline;
-
-// Se puede contestar: elección abierta y dentro de plazo.
-export const acceptingAnswers = (election, now = Date.now()) => isOpen(election) && !deadlinePassed(election, now);
+// Se puede contestar mientras la elección está abierta.
+export const acceptingAnswers = (election) => isOpen(election);
 
 // --- Límite de alumnos por profesor ---
 
