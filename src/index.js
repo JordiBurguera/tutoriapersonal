@@ -8,6 +8,19 @@ const port = Number(process.env.PORT || 3000);
 const appUrl = (process.env.APP_URL || `http://localhost:${port}`).replace(/\/$/, '');
 const db = openDb(process.env.DB_PATH || 'data/tutoria.db');
 
+// Administradores fijos: tienen acceso a todo y no dependen del .env.
+// Se escribe solo la parte antes de @lescarolines.com.
+const ADMINS_FIJOS = ['admin.tutoria'];
+
+const ensureAdmin = (username) => {
+  const { firstName, lastName } = namesFromUsername(username);
+  db.prepare(`INSERT OR IGNORE INTO users (username, first_name, last_name, role) VALUES (?, ?, ?, 'admin')`)
+    .run(username, firstName, lastName);
+  db.prepare(`UPDATE users SET role = 'admin' WHERE username = ?`).run(username);
+};
+
+for (const username of ADMINS_FIJOS.map(normalizeUsername).filter(Boolean)) ensureAdmin(username);
+
 const adminUser = normalizeUsername(process.env.ADMIN_USER ?? '');
 if (adminUser) {
   const { firstName, lastName } = namesFromUsername(adminUser);
