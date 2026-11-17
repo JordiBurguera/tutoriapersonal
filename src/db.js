@@ -83,6 +83,25 @@ CREATE TABLE IF NOT EXISTS student_data_changes (
   before_data TEXT NOT NULL,
   after_data TEXT NOT NULL
 );
+-- Historial de acciones. Guarda el nombre de quien la hizo para que sobreviva a su cuenta.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY,
+  at INTEGER NOT NULL,
+  actor_id INTEGER,
+  actor_name TEXT NOT NULL,
+  action TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS audit_log_at ON audit_log (at);
+-- Avisos dentro de la aplicación (la campana).
+CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  at INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  read_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS notifications_user ON notifications (user_id, at);
 `;
 
 // Bases de datos anteriores guardaban el nombre completo en una sola columna.
@@ -90,6 +109,11 @@ function migrate(db) {
   const columns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!columns.includes('tutor_group')) db.exec('ALTER TABLE users ADD COLUMN tutor_group TEXT');
   if (!columns.includes('promotion_mark')) db.exec('ALTER TABLE users ADD COLUMN promotion_mark TEXT');
+  // Límite de alumnos de cada profesor (vacío: el general).
+  if (!columns.includes('max_students')) db.exec('ALTER TABLE users ADD COLUMN max_students INTEGER');
+  // Fecha límite para contestar.
+  const electionColumns = db.prepare('PRAGMA table_info(elections)').all().map((c) => c.name);
+  if (!electionColumns.includes('deadline')) db.exec('ALTER TABLE elections ADD COLUMN deadline INTEGER');
   if (columns.includes('first_name')) return;
   db.exec(`
     ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT '';
