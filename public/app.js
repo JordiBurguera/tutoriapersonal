@@ -17,7 +17,7 @@ function loadClosedPanels() {
 }
 
 // Lo que debe sobrevivir a un repintado por aviso en tiempo real.
-const ui = { previewId: null, classKey: null, searchQuery: '', meetingSaved: false, groupSaved: false, groupOpen: false, closedPanels: loadClosedPanels(), promotionClasses: new Set(), promotionReview: false, promotionResult: null, navOpen: false, counts: {}, dataSaved: false, studentVoting: true };
+const ui = { filters: {}, importPreview: null, importResult: null, limitSaved: false, deadlineSaved: false, history: null, previewId: null, classKey: null, searchQuery: '', meetingSaved: false, groupSaved: false, groupOpen: false, closedPanels: loadClosedPanels(), promotionClasses: new Set(), promotionReview: false, promotionResult: null, navOpen: false, counts: {}, dataSaved: false, studentVoting: true };
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const ORDINAL = { 1: '1r', 2: '2n', 3: '3r', 4: '4t' };
@@ -38,6 +38,13 @@ const ICONS = {
   search: '<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/>',
   user: '<circle cx="8" cy="5" r="3"/><path d="M2.5 14c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5"/>',
   home: '<path d="M2.5 7 8 2.5 13.5 7v6.5h-11z"/><path d="M6.5 13.5V9.5h3v4"/>',
+  chart: '<path d="M2.5 13.5h11M4.5 11V7.5M8 11V4M11.5 11V6"/>',
+  clock: '<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.2l2 1.3"/>',
+  bell: '<path d="M4 11.5V7.5a4 4 0 0 1 8 0v4l1 1.2H3z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/>',
+  moon: '<path d="M13 9.6A5.5 5.5 0 0 1 6.4 3a5.5 5.5 0 1 0 6.6 6.6z"/>',
+  sun: '<circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/>',
+  upload: '<path d="M8 10.5V2.5M5 5.5l3-3 3 3M2.5 10.5v3h11v-3"/>',
+  download: '<path d="M8 2.5v8M5 7.5l3 3 3-3M2.5 10.5v3h11v-3"/>',
   grip: '<g fill="currentColor" stroke="none"><circle cx="5.5" cy="3.5" r="1.2"/><circle cx="10.5" cy="3.5" r="1.2"/><circle cx="5.5" cy="8" r="1.2"/><circle cx="10.5" cy="8" r="1.2"/><circle cx="5.5" cy="12.5" r="1.2"/><circle cx="10.5" cy="12.5" r="1.2"/></g>',
 };
 const icon = (name) => `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -79,7 +86,7 @@ function ask(message, { confirmLabel = 'Confirmar', danger = false, alertOnly = 
 
 // Repinta la vista sin perder lo que se estaba escribiendo, el foco ni el scroll.
 async function rerender() {
-  const values = new Map([...app.querySelectorAll('input[id]:not(:disabled), select[id]:not(:disabled)')].map((el) => [el.id, el.value]));
+  const values = new Map([...app.querySelectorAll('input[id]:not(:disabled):not([type="file"]), select[id]:not(:disabled)')].map((el) => [el.id, el.value]));
   const focused = document.activeElement?.id;
   const caret = [document.activeElement?.selectionStart, document.activeElement?.selectionEnd];
   const scroll = window.scrollY;
@@ -143,6 +150,139 @@ const tutoredRows = (students) => `
     <td>${esc(classLabel(s))}</td>
     <td class="end">${composeButton([s], 'Redactar correu', 'quiet')}</td></tr>`).join('')}</tbody>`;
 
+// --- Fechas ---
+
+const fmtDate = (ms, opts = {}) => new Intl.DateTimeFormat('ca-ES', {
+  day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', ...opts,
+}).format(new Date(ms));
+const fmtShort = (ms) => new Intl.DateTimeFormat('ca-ES', {
+  day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+}).format(new Date(ms));
+
+// «queden 2 dies i 3 h»
+function remaining(ms) {
+  const diff = ms - Date.now();
+  if (diff <= 0) return 'el termini ha acabat';
+  const minutes = Math.floor(diff / 60000);
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  if (days >= 1) return `${days === 1 ? 'queda 1 dia' : `queden ${days} dies`}${hours ? ` i ${hours} h` : ''}`;
+  if (hours >= 1) return `${hours === 1 ? 'queda 1 hora' : `queden ${hours} hores`}`;
+  return minutes <= 1 ? 'queda menys d\'un minut' : `queden ${minutes} minuts`;
+}
+
+// «fa 5 min», «ahir a les 10:30»
+function ago(ms) {
+  const minutes = Math.round((Date.now() - ms) / 60000);
+  if (minutes < 1) return 'ara mateix';
+  if (minutes < 60) return `fa ${minutes} min`;
+  if (minutes < 60 * 24) return `fa ${Math.round(minutes / 60)} h`;
+  return fmtDate(ms);
+}
+
+// Valor de <input type="datetime-local"> a partir de milisegundos, en hora local.
+const toLocalInput = (ms) => new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+// --- Modo oscuro ---
+
+const THEME_KEY = 'tutoria.tema';
+const isDark = () => document.documentElement.dataset.theme === 'dark';
+function toggleTheme() {
+  const next = isDark() ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem(THEME_KEY, next); } catch { /* sin almacenamiento: solo esta visita */ }
+  renderHeader();
+}
+const themeButton = () => `<button type="button" class="btn quiet icon-btn" data-theme-toggle title="${isDark() ? 'Mode clar' : 'Mode fosc'}" aria-label="${isDark() ? 'Canviar a mode clar' : 'Canviar a mode fosc'}">${icon(isDark() ? 'sun' : 'moon')}</button>`;
+
+// --- Avisos (campana) ---
+
+const bellButton = () => (me ? `<button type="button" class="btn quiet icon-btn bell" id="bell" aria-label="Avisos${me.unread ? `: ${me.unread} sense llegir` : ''}" title="Avisos">
+  ${icon('bell')}${me.unread ? `<span class="badge">${me.unread > 9 ? '9+' : me.unread}</span>` : ''}</button>` : '');
+
+async function openNotifications() {
+  const { items } = await api('/api/avisos');
+  const dialog = document.createElement('dialog');
+  dialog.className = 'notices';
+  dialog.innerHTML = `<div class="dialog-head"><h2>Avisos</h2><button type="button" class="btn quiet" value="close">Tancar</button></div>
+    ${items.length ? `<ul class="notice-list">${items.map((n) => `<li class="${n.read_at ? '' : 'unread'}">
+      <span class="dot" aria-hidden="true"></span><div><p>${esc(n.text)}</p><time datetime="${new Date(n.at).toISOString()}">${esc(ago(n.at))}</time></div></li>`).join('')}</ul>`
+      : '<p class="empty">No tens cap avís.</p>'}`;
+  dialog.querySelector('button').onclick = () => dialog.close();
+  dialog.onclose = () => dialog.remove();
+  document.body.append(dialog);
+  dialog.showModal();
+  if (items.some((n) => !n.read_at)) {
+    await api('/api/avisos/llegits', 'POST');
+    me.unread = 0;
+    renderHeader();
+  }
+}
+
+// --- Buscador y filtros (sin repintar: se ocultan filas) ---
+
+const plainText = (value) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const filterState = (key) => (ui.filters[key] ??= { q: '' });
+
+// controls: [{ name, label, options: [[value, label], ...] }]
+function filterBar(key, controls = [], placeholder = 'Buscar per nom o correu') {
+  const state = filterState(key);
+  return `<div class="filter-bar" data-filter="${key}">
+    <label class="search-box">${icon('search')}<input type="search" id="fq-${key}" data-filter-q placeholder="${esc(placeholder)}" value="${esc(state.q)}" aria-label="Buscar"></label>
+    ${controls.map((c) => `<select class="compact filter-select" id="f-${key}-${c.name}" data-filter-field="${c.name}" aria-label="${esc(c.label)}">
+      <option value="">${esc(c.label)}: tots</option>
+      ${c.options.map(([value, label]) => `<option value="${esc(value)}" ${state[c.name] === String(value) ? 'selected' : ''}>${esc(label)}</option>`).join('')}
+    </select>`).join('')}
+    <span class="filter-count" id="fc-${key}" aria-live="polite"></span>
+    <button type="button" class="btn quiet" data-filter-clear="${key}">Netejar</button>
+  </div>`;
+}
+
+// Atributos de una fila filtrable: texto de búsqueda y valores de cada filtro.
+const rowAttrs = (key, text, fields = {}) => `data-row="${key}" data-q="${esc(plainText(text))}" ${Object.entries(fields)
+  .map(([name, value]) => `data-f-${name}="${esc(value ?? '')}"`).join(' ')}`;
+
+function applyFilters() {
+  document.querySelectorAll('[data-filter]').forEach((bar) => {
+    const key = bar.dataset.filter;
+    const state = filterState(key);
+    const words = plainText(state.q).split(/\s+/).filter(Boolean);
+    const rows = [...document.querySelectorAll(`[data-row="${key}"]`)];
+    let shown = 0;
+    for (const row of rows) {
+      const match = words.every((w) => row.dataset.q.includes(w))
+        && Object.entries(state).every(([name, value]) => name === 'q' || !value || (row.getAttribute(`data-f-${name}`) ?? '').split(' ').includes(value));
+      row.hidden = !match;
+      if (match) shown += 1;
+    }
+    const active = words.length || Object.entries(state).some(([name, value]) => name !== 'q' && value);
+    const count = document.getElementById(`fc-${key}`);
+    if (count) count.textContent = active ? `${shown} de ${rows.length}` : `${rows.length}`;
+    bar.querySelector('[data-filter-clear]').hidden = !active;
+    const empty = document.querySelector(`[data-filter-empty="${key}"]`);
+    if (empty) empty.hidden = !(active && shown === 0);
+  });
+}
+
+function bindFilters() {
+  document.querySelectorAll('[data-filter]').forEach((bar) => {
+    const key = bar.dataset.filter;
+    const state = filterState(key);
+    bar.querySelector('[data-filter-q]').oninput = (event) => { state.q = event.target.value; applyFilters(); };
+    bar.querySelectorAll('[data-filter-field]').forEach((select) => {
+      select.onchange = () => { state[select.dataset.filterField] = select.value; applyFilters(); };
+    });
+    bar.querySelector('[data-filter-clear]').onclick = () => {
+      ui.filters[key] = { q: '' };
+      bar.querySelectorAll('input, select').forEach((el) => { el.value = ''; });
+      applyFilters();
+    };
+  });
+  applyFilters();
+}
+
+const noMatches = (key) => `<p class="empty" data-filter-empty="${key}" hidden>Cap resultat amb estos filtres.</p>`;
+
 // --- Marco y navegación ---
 
 const NAV = {
@@ -155,6 +295,7 @@ const NAV = {
   admin: [
     { items: [
       { key: 'eleccions', label: 'Eleccions', icon: 'ballot' },
+      { key: 'estadistiques', label: 'Estadístiques', icon: 'chart' },
       { key: 'sense-tutor', label: 'Sense tutor', icon: 'userx', count: 'unassigned' },
       { key: 'pas-de-curs', label: 'Pas de curs', icon: 'up' },
     ] },
@@ -162,6 +303,9 @@ const NAV = {
       { key: 'alumnat', label: 'Alumnat', icon: 'people' },
       { key: 'professorat', label: 'Professorat', icon: 'book' },
       { key: 'administradors', label: 'Administradors', icon: 'shield' },
+    ] },
+    { title: 'Registre', items: [
+      { key: 'historial', label: 'Historial', icon: 'clock' },
     ] },
   ],
   profesor: [
@@ -194,17 +338,29 @@ function renderHeader() {
         ${icon(item.icon)}<span>${esc(item.label)}</span>${count ? `<span class="count">${count}</span>` : ''}
       </a>`;
     }).join('')}`).join('')}</nav>` : '';
+  const sideTools = groups.length ? `<div class="side-tools">
+      <button type="button" class="side-tool" id="bellSide">${icon('bell')}<span>Avisos</span>${me.unread ? `<span class="badge">${me.unread > 9 ? '9+' : me.unread}</span>` : ''}</button>
+      <button type="button" class="side-tool" data-theme-toggle>${icon(isDark() ? 'sun' : 'moon')}<span>${isDark() ? 'Mode clar' : 'Mode fosc'}</span></button>
+    </div>` : '';
   header.innerHTML = `
     <div class="brand">${LOGO}<strong>Tutoria personal</strong></div>
-    ${groups.length ? `<button type="button" id="menu" class="btn quiet menu-toggle" aria-expanded="${ui.navOpen}" aria-controls="navSheet">${ui.navOpen ? 'Tancar' : 'Menú'}</button>` : ''}
+    ${!me ? `<div class="header-tools">${themeButton()}</div>` : ''}
+    ${groups.length ? `<div class="mobile-tools">${bellButton()}<button type="button" id="menu" class="btn quiet menu-toggle" aria-expanded="${ui.navOpen}" aria-controls="navSheet">${ui.navOpen ? 'Tancar' : 'Menú'}</button></div>` : ''}
     ${me ? `<div id="navSheet" class="nav-sheet${ui.navOpen ? ' open' : ''}">
       ${nav}
+      ${sideTools}
+      ${groups.length ? `<p class="legal-links"><a href="/avis-legal.html">Avís legal</a><a href="/privacitat.html">Privacitat</a><a href="/cookies.html">Cookies</a></p>` : ''}
       <div class="user-row">
-        ${chip(me.id ? me : { first_name: me.firstName, last_name: me.lastName })}
+        ${chip({ id: me.id, first_name: me.firstName, last_name: me.lastName })}
         <div class="who"><strong>${esc(me.firstName)} ${esc(me.lastName)}</strong><span>${esc(ROLE_LABEL[me.role])}</span></div>
+        ${groups.length ? '' : `${bellButton()}${themeButton()}`}
         <button type="button" id="logout" class="btn quiet">Eixir</button>
       </div>
     </div>` : ''}`;
+  header.querySelectorAll('[data-theme-toggle]').forEach((btn) => { btn.onclick = toggleTheme; });
+  header.querySelectorAll('#bell, #bellSide').forEach((btn) => {
+    btn.onclick = () => openNotifications().catch((err) => ask(err.message, { alertOnly: true }));
+  });
   if (me) {
     document.getElementById('logout').onclick = async () => {
       await api('/api/logout', 'POST');
@@ -487,6 +643,7 @@ function renderBallot(data) {
   previousTutorId = data.previousTutor?.id ?? null;
   app.innerHTML = `
     ${titleRow(esc(data.electionTitle), "Ordena el professorat i envia la teua resposta. Quan l'envies no podràs canviar-la.")}
+    ${data.deadline ? `<p class="deadline-banner ${data.deadline - Date.now() < 86400000 ? 'soon' : ''}">${icon('clock')}<span>Tens fins al <strong>${esc(fmtDate(data.deadline, { weekday: 'long' }))}</strong> per a contestar · ${esc(remaining(data.deadline))}.</span></p>` : ''}
     <form id="ballot">
       ${card('Les teues dades', `<div class="fields-row">
         <div class="field"><label for="firstName">Nom</label><input id="firstName" required maxlength="60" value="${esc(data.firstName)}"></div>
@@ -663,9 +820,11 @@ async function renderTeacher() {
               <button class="btn" data-request="${r.id}" data-action="rechazar">Rebutjar</button>
             </div></td></tr>`).join('')}</tbody>
         </table>` : '<p class="empty">No tens sol·licituds pendents.</p>', { meta: String(data.pending.length) })}
-        ${card('Els teus alumnes tutoritzats', data.students.length
+        ${card('Els teus alumnes tutoritzats', `${data.limit ? `<div class="limit-line">${loadMeter(data.students.length, data.limit)}<span>${data.students.length >= data.limit
+          ? 'Has arribat al teu límit: les sol·licituds noves passen a la següent preferència de l\'alumne.'
+          : `Et queden ${plural(data.limit - data.students.length, 'plaça', 'places')}.`}</span></div>` : ''}${data.students.length
           ? `<table class="stack-table">${tutoredRows(data.students)}</table>`
-          : '<p class="empty">Encara no tens alumnes.</p>', { meta: String(data.students.length), action: composeAll(data.students) })}
+          : '<p class="empty">Encara no tens alumnes.</p>'}`, { meta: data.limit ? `${data.students.length} de ${data.limit}` : String(data.students.length), action: composeAll(data.students) })}
       </div>
       <div class="stack">
         ${card(LLOC, `
@@ -965,6 +1124,9 @@ function electionFinding({ election, open, stats }, unassigned) {
   if (!election) return "Encara no s'han convocat eleccions.";
   if (open) {
     if (!stats.students) return 'Encara no ha entrat cap alumne.';
+    if (stats.unanswered && election.deadline && election.deadline < Date.now()) {
+      return `<strong>El termini ha acabat.</strong> ${plural(stats.unanswered, 'alumne no ha', 'alumnes no han')} contestat, però ja pots tancar les eleccions.`;
+    }
     if (stats.unanswered) return `<strong>${stats.unanswered === 1 ? 'Falta 1 alumne' : `Falten ${stats.unanswered} alumnes`} per votar.</strong> Les eleccions no es poden tancar fins que voten.`;
     return "<strong>Ja ha votat tot l'alumnat.</strong> Ja es poden tancar les eleccions.";
   }
@@ -973,10 +1135,34 @@ function electionFinding({ election, open, stats }, unassigned) {
     : "<strong>Tancades.</strong> Tot l'alumnat té tutor.";
 }
 
-const convokeForm = () => `<form id="open">
+const convokeForm = () => `<form id="open" class="convoke">
   <input id="title" required maxlength="100" aria-label="Títol de les eleccions" placeholder="Títol, ex.: Curs 2026-27">
+  <label class="inline-field" title="Opcional: a partir d'esta data l'alumnat ja no podrà contestar">Termini
+    <input id="newDeadline" type="datetime-local" aria-label="Termini per a contestar (opcional)"></label>
   <button class="btn primary">Convocar eleccions</button>
 </form>`;
+
+const deadlineMs = (id) => {
+  const value = document.getElementById(id)?.value;
+  return value ? new Date(value).getTime() : null;
+};
+
+function deadlineCard(election) {
+  const passed = election.deadline && election.deadline < Date.now();
+  return panel('termini', 'Termini per a contestar', `
+    ${election.deadline
+      ? `<p class="deadline-line ${passed ? 'over' : ''}">${icon('clock')}<span><strong>${esc(fmtDate(election.deadline, { weekday: 'long' }))}</strong><br>${esc(remaining(election.deadline))}</span></p>`
+      : '<p class="lead">Sense termini: l\'alumnat pot contestar fins que tanques les eleccions.</p>'}
+    <form id="deadlineForm" class="joined" style="margin-top:12px">
+      <input id="deadlineInput" type="datetime-local" aria-label="Nou termini" value="${election.deadline && !passed ? toLocalInput(election.deadline) : ''}">
+      <button class="btn outline">Guardar</button>
+    </form>
+    ${election.deadline ? '<button type="button" class="btn quiet" id="clearDeadline" style="margin-top:6px">Treure el termini</button>' : ''}
+    ${ui.deadlineSaved ? '<p class="msg-ok">Termini guardat. L\'alumnat pendent ha rebut un avís.</p>' : ''}
+    <p class="panel-note">Un dia abans, l'alumnat que no haja contestat rep un avís i un correu.</p>`);
+}
+
+const excelButton = (label = 'Descarregar Excel') => `<a class="btn outline" href="/api/admin/informe.xlsx" title="Informe complet en Excel: resum, alumnat, professorat i alumnat per tutor">${icon('download')}${esc(label)}</a>`;
 
 function electionsView(data, unassigned, teacherName) {
   const { election, open, stats, canClose } = data;
@@ -985,8 +1171,8 @@ function electionsView(data, unassigned, teacherName) {
     : 'Eleccions';
   const pdf = '<a class="btn outline" href="/api/admin/informe.pdf" title="Descarregar el cartell en PDF amb tutors, alumnes i llocs de reunió">Descarregar cartell</a>';
   const actions = !election ? ''
-    : open ? `${pdf}<button id="close" type="button" class="btn primary" ${canClose ? '' : 'disabled'}>Tancar les eleccions</button>`
-      : `${pdf}${convokeForm()}`;
+    : open ? `${pdf}${excelButton()}<button id="close" type="button" class="btn primary" ${canClose ? '' : 'disabled'}>Tancar les eleccions</button>`
+      : `${pdf}${excelButton()}${convokeForm()}`;
   if (!election) {
     return `${titleRow(heading, electionFinding(data, unassigned))}
       <div class="column narrow" style="margin-inline:0">${card('Convocar les primeres eleccions', convokeForm())}</div>`;
@@ -1002,7 +1188,8 @@ function electionsView(data, unassigned, teacherName) {
       <div class="stack">
         ${panel('participacio', 'Participació', `
           <div class="ring-block">${donut(stats)}${legend(stats)}</div>
-          <p class="panel-note">Només compta l'alumnat que ja ha iniciat sessió alguna vegada.</p>`)}
+          <p class="panel-note">Compta l'alumnat que ha iniciat sessió o que s'ha importat.</p>`)}
+        ${open ? deadlineCard(election) : ''}
         <div class="grow-last" style="display:contents">
         ${panel('sense-tutor', 'Sense tutor', nextUp.length ? `
           <ul class="rows">${nextUp.map((s) => `<li><div class="grow">${esc(listName(s))}<span class="sub">${esc(classLabel(s))}</span></div>${stateTag(s.status)}</li>`).join('')}</ul>
@@ -1018,31 +1205,78 @@ function unassignedView(data, unassigned) {
     data.teachers.filter((t) => ids.includes(t.id)).map((t) => `<option value="${t.id}">${esc(listName(t))}</option>`).join('');
   if (!election) return `${titleRow('Alumnat sense tutor')}<div class="column narrow" style="margin-inline:0"><section class="panel"><p class="empty">Encara no s'han convocat eleccions.</p></section></div>`;
   return `${titleRow('Alumnat sense tutor', unassigned.length ? plural(unassigned.length, 'alumne sense tutor.', 'alumnes sense tutor.') : '')}
-    ${panel('sense-tutor-llista', 'Assignar tutor', unassigned.length ? `<table class="stack-table">
+    ${panel('sense-tutor-llista', 'Assignar tutor', unassigned.length ? `${filterBar('sense-tutor', [CLASS_FILTER, STATUS_FILTER])}<table class="stack-table">
       <thead class="sticky"><tr><th><span class="col">Alumne</span></th><th><span class="col">Classe</span></th><th><span class="col">Estat</span></th><th><span class="col">Assignar</span></th></tr></thead>
-      <tbody>${unassigned.map((s) => `<tr>
+      <tbody>${unassigned.map((s) => `<tr ${rowAttrs('sense-tutor', `${listName(s)} ${s.username}`, studentFilterFields(s))}>
         <td class="person">${esc(listName(s))}</td><td>${esc(classLabel(s))}</td><td>${stateTag(s.status)}</td>
         <td class="end"><div class="cell-actions"><select class="compact" id="assign-${s.id}" aria-label="Tutor de ${esc(listName(s))}">${teacherOptions(s.allowedTeacherIds)}</select>
           <button type="button" class="btn outline" data-assign="${s.id}">Assignar</button></div></td>
       </tr>`).join('')}</tbody>
-    </table>` : '<p class="empty">Cap alumne sense tutor.</p>')}`;
+    </table>${noMatches('sense-tutor')}` : '<p class="empty">Cap alumne sense tutor.</p>')}`;
+}
+
+// Filtros comunes del alumnado.
+const CLASS_FILTER = { name: 'classe', label: 'Classe', options: [1, 2, 3, 4].flatMap((c) => ['A', 'B'].map((g) => [`${c}${g}`, `${ORDINAL[c]} ${g}`])).concat([['none', 'Sense classe']]) };
+const STATUS_FILTER = { name: 'estat', label: 'Estat', options: [['asignado', 'Confirmat'], ['en_proceso', "A l'espera"], ['agotada', 'Rebutjat per tota la llista'], ['por_contestar', 'Sense contestar'], ['sin_respuesta', 'No va contestar']] };
+const studentFilterFields = (s) => ({ classe: s.curso ? `${s.curso}${s.grupo}` : 'none', estat: s.status, tutor: s.tutorId ?? 'none' });
+
+function importPanel() {
+  const preview = ui.importPreview;
+  const result = ui.importResult;
+  let body = `<p class="lead" style="margin-bottom:12px">Puja un Excel (.xlsx) o un CSV amb les columnes <strong>Correu, Nom, Cognoms, Curs i Grup</strong>. També val una columna «Classe» amb valors com «2n B». Si l'alumne ja existix, s'actualitzen les seues dades.</p>
+    <div class="import-actions">
+      <label class="file-pick">${icon('upload')}<span id="importFileName">Tria un arxiu…</span><input type="file" id="importFile" accept=".xlsx,.csv,text/csv"></label>
+      <button type="button" class="btn primary" id="importCheck" disabled>Revisar</button>
+      <a class="btn quiet" href="/api/admin/plantilla.xlsx">${icon('download')}Plantilla d'Excel</a>
+    </div>`;
+  if (result) {
+    body += `<p class="msg-ok" style="margin-top:12px">Importació feta: ${plural(result.created, 'alumne nou', 'alumnes nous')} i ${plural(result.updated, 'actualitzat', 'actualitzats')}${result.skipped ? `, ${result.skipped} descartats` : ''}.</p>`;
+  }
+  if (preview) {
+    const count = (action) => preview.rows.filter((r) => r.action === action).length;
+    const valid = preview.rows.filter((r) => r.action !== 'error');
+    const tag = { nou: '<span class="pill pill-new">Nou</span>', actualitza: '<span class="pill pill-update">Actualitza</span>', error: '<span class="pill pill-error">Error</span>' };
+    body += `<div class="import-preview">
+      <div class="import-summary">
+        <span class="pill pill-new">${plural(count('nou'), 'nou', 'nous')}</span>
+        <span class="pill pill-update">${plural(count('actualitza'), 'a actualitzar', 'a actualitzar')}</span>
+        ${count('error') ? `<span class="pill pill-error">${plural(count('error'), 'error', 'errors')}</span>` : ''}
+      </div>
+      <div class="import-table"><table class="stack-table">
+        <thead><tr><th><span class="col">Fila</span></th><th><span class="col">Alumne</span></th><th><span class="col">Classe</span></th><th><span class="col">Resultat</span></th></tr></thead>
+        <tbody>${preview.rows.map((r) => `<tr class="${r.action === 'error' ? 'row-error' : ''}">
+          <td data-label="Fila">${r.line}</td>
+          <td class="person">${esc([r.lastName, r.firstName].filter(Boolean).join(', ') || '—')}<span class="sub">${esc(r.username)}</span></td>
+          <td>${r.curso && r.grupo ? esc(`${ORDINAL[r.curso]} ${r.grupo}`) : DASH}</td>
+          <td>${tag[r.action]}${r.error ? `<span class="sub">${esc(r.error)}</span>` : ''}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <div class="form-actions">
+        <button type="button" class="btn primary" id="importConfirm" ${valid.length ? '' : 'disabled'}>Importar ${plural(valid.length, 'alumne', 'alumnes')}</button>
+        <button type="button" class="btn quiet" id="importCancel">Cancel·lar</button>
+      </div>
+      ${count('error') ? '<p class="panel-note">Les files amb error no s\'importaran.</p>' : ''}
+    </div>`;
+  }
+  return panel('importar', 'Importar alumnat des d\'Excel', body);
 }
 
 function studentsView(data, teacherName) {
   const { election, open } = data;
   const teacherOptions = `<option value="">— Professor —</option>` + data.teachers.map((t) => `<option value="${t.id}">${esc(listName(t))}</option>`).join('');
-  const table = panel('alumnat', 'Comptes d\'alumnat', data.students.length ? `<table class="stack-table">
+  const tutorFilter = { name: 'tutor', label: 'Tutor', options: [['none', 'Sense tutor'], ...data.teachers.map((t) => [String(t.id), listName(t)])] };
+  const table = panel('alumnat', 'Comptes d\'alumnat', data.students.length ? `${filterBar('alumnat', [CLASS_FILTER, STATUS_FILTER, tutorFilter])}<table class="stack-table">
     <thead class="sticky"><tr><th><span class="col">Alumne</span></th><th><span class="col">Classe</span></th><th><span class="col">Tutor</span></th><th><span class="col">Resposta</span></th><th><span class="col">Nivell</span></th><th></th></tr></thead>
-    <tbody>${data.students.map((s) => `<tr>
+    <tbody>${data.students.map((s) => `<tr ${rowAttrs('alumnat', `${listName(s)} ${s.username}`, studentFilterFields(s))}>
       <td class="person">${esc(listName(s))}<span class="sub">${esc(emailOf(s))}</span></td>
       <td>${esc(classLabel(s))}</td>
       <td>${s.tutorId ? `<span class="who-cell">${chip(data.teachers.find((t) => t.id === s.tutorId))}${esc(teacherName(s.tutorId))}</span>` : '<span class="dash">sense tutor</span>'}</td>
       <td class="ctl">${open && s.hasBallot ? `<button type="button" class="btn quiet" data-clear-answer="${s.id}">Esborrar</button>` : ''}</td>
       ${accountActions(s, 'alumno', data)}</tr>`).join('')}</tbody>
-  </table>` : '<p class="empty">Encara no ha entrat cap alumne.</p>', { meta: String(data.students.length) });
-  const title = titleRow('Alumnat', "L'alumnat es dona d'alta sol la primera vegada que inicia sessió.");
-  if (!(election && !open)) return `${title}${table}`;
+  </table>${noMatches('alumnat')}` : '<p class="empty">Encara no hi ha alumnat. Importa\'l des d\'Excel o espera que inicie sessió.</p>', { meta: String(data.students.length) });
+  const title = titleRow('Alumnat', "L'alumnat es dona d'alta sol la primera vegada que inicia sessió, o el pots importar des d'Excel.", excelButton());
+  if (!(election && !open)) return `${title}<div class="stack">${importPanel()}${table}</div>`;
   return `${title}<div class="stack">
+    ${importPanel()}
     ${panel('alumne-nou', 'Alumne nou a mitjan curs', `
       <p class="lead" style="margin-bottom:12px">Crea el compte i assigna-li tutor directament, sense confirmació.</p>
       <form id="newStudent" class="form-strip new-student">
@@ -1070,20 +1304,132 @@ const createAccountPanel = (defaultRole, strip = false) => panel('alta', "Donar 
     <button class="btn primary">Donar d'alta</button>
   </form>`);
 
+// Ocupación: «3 / 6» con una barra; sin límite, solo el número.
+const loadMeter = (count, limit) => (limit
+  ? `<span class="load ${count >= limit ? 'full' : ''}" title="${count} de ${limit} places"><span class="load-bar"><i style="width:${Math.min(100, Math.round((count / limit) * 100))}%"></i></span><span>${count}/${limit}</span></span>`
+  : `<span class="load"><span>${count}</span></span>`);
+
+const placesOf = (t) => (t.limit === null ? 'sense-limit' : t.students.length >= t.limit ? 'ple' : 'amb-places');
+
+function limitPanel(data) {
+  return panel('limit', "Límit d'alumnes per professor", `
+    <p class="lead" style="margin-bottom:12px">Quan un professor arriba al límit, les sol·licituds noves passen soles a la següent preferència de l'alumne. Es pot canviar per a cada professor en la llista.</p>
+    <form id="limitForm" class="joined limit-form">
+      <input id="limitDefault" type="number" min="1" max="500" inputmode="numeric" placeholder="Sense límit" aria-label="Límit general d'alumnes" value="${data.defaultLimit ?? ''}">
+      <button class="btn outline">Guardar</button>
+    </form>
+    ${ui.limitSaved ? '<p class="msg-ok">Límit guardat.</p>' : ''}`);
+}
+
 function teachersView(data) {
-  return `${titleRow('Professorat')}
+  const departments = [...new Set(data.teachers.map((t) => t.department).filter(Boolean))].sort();
+  const filters = [
+    { name: 'dept', label: 'Departament', options: departments.map((d) => [d, d]) },
+    { name: 'places', label: 'Places', options: [['amb-places', 'Amb places'], ['ple', 'Ple'], ['sense-limit', 'Sense límit']] },
+  ];
+  return `${titleRow('Professorat', '', excelButton())}
     <div class="stack">
-      ${createAccountPanel('profesor', true)}
-      ${panel('professorat', 'Comptes de professorat', data.teachers.length ? `<table class="stack-table">
-        <thead class="sticky"><tr><th><span class="col">Professor</span></th><th><span class="col">Departament</span></th><th><span class="col">Tutor de grup</span></th><th class="n"><span class="col">Alumnes</span></th><th><span class="col">Nivell</span></th><th></th></tr></thead>
-        <tbody>${data.teachers.map((t) => `<tr>
+      <div class="split even">${createAccountPanel('profesor')}${limitPanel(data)}</div>
+      ${panel('professorat', 'Comptes de professorat', data.teachers.length ? `${filterBar('professorat', filters, 'Buscar professor')}<table class="stack-table">
+        <thead class="sticky"><tr><th><span class="col">Professor</span></th><th><span class="col">Departament</span></th><th><span class="col">Tutor de grup</span></th><th><span class="col">Alumnes</span></th><th><span class="col">Límit</span></th><th><span class="col">Nivell</span></th><th></th></tr></thead>
+        <tbody>${data.teachers.map((t) => `<tr ${rowAttrs('professorat', `${listName(t)} ${t.username} ${t.department ?? ''}`, { dept: t.department ?? '', places: placesOf(t) })}>
           <td class="person"><span class="who-cell">${chip(t)}<button type="button" class="link" data-preview="${t.id}">${esc(listName(t))}</button></span></td>
           <td>${t.department ? esc(t.department) : DASH}</td>
           <td data-label="Tutor de grup">${t.tutor_group ? esc(groupLabel(t.tutor_group)) : DASH}</td>
-          <td class="n" data-label="Alumnes">${t.students.length}</td>
+          <td data-label="Alumnes">${loadMeter(t.students.length, t.limit)}</td>
+          <td class="ctl" data-label="Límit"><input class="compact limit-input" type="number" min="1" max="500" inputmode="numeric" data-limit="${t.id}" value="${t.max_students ?? ''}" placeholder="${data.defaultLimit ?? '∞'}" aria-label="Límit de ${esc(listName(t))}" title="Buit: el límit general"></td>
           ${accountActions(t, 'profesor', data)}</tr>`).join('')}</tbody>
-      </table>` : "<p class=\"empty\">Encara no hi ha professorat. Dona'n d'alta un per a poder convocar eleccions.</p>", { meta: String(data.teachers.length) })}
+      </table>${noMatches('professorat')}` : "<p class=\"empty\">Encara no hi ha professorat. Dona'n d'alta un per a poder convocar eleccions.</p>", { meta: String(data.teachers.length) })}
     </div>`;
+}
+
+// --- Estadístiques ---
+
+const pct = (n, total) => (total ? Math.round((n / total) * 100) : 0);
+
+function statsView(data) {
+  const { stats, election } = data;
+  const voted = stats.confirmed + stats.waiting;
+  const kpi = (label, value, note = '', tone = '') => `<div class="kpi ${tone}"><span class="kpi-label">${esc(label)}</span><span class="kpi-value">${value}</span>${note ? `<span class="kpi-note">${note}</span>` : ''}</div>`;
+  if (!election) return `${titleRow('Estadístiques')}<section class="panel"><p class="empty">Encara no s'han convocat eleccions.</p></section>`;
+
+  const classes = classGroups(data.students).filter((g) => g.students.length);
+  const classBarsHtml = classes.map((g) => {
+    const c = Object.fromEntries(SEGMENTS.map((s) => [s.key, g.students.filter((st) => segmentOf(st) === s.key).length]));
+    const total = g.students.length;
+    return `<div class="hbar-row"><span class="hbar-label">${esc(g.label)}</span>
+      <span class="hbar stacked" title="${SEGMENTS.map((s) => `${s.label}: ${c[s.key]}`).join(' · ')}">${SEGMENTS.map((s) => (c[s.key] ? `<i class="seg ${s.key}" style="width:${(c[s.key] / total) * 100}%"></i>` : '')).join('')}</span>
+      <span class="hbar-value">${pct(c.confirmed + c.waiting, total)}%</span></div>`;
+  }).join('');
+
+  const maxLoad = Math.max(1, ...data.teachers.map((t) => Math.max(t.students.length + t.pendingCount, t.limit ?? 0)));
+  const loadRows = [...data.teachers].sort((a, b) => b.students.length - a.students.length).map((t) => `<div class="hbar-row">
+    <span class="hbar-label">${esc(listName(t))}</span>
+    <span class="hbar" title="${t.students.length} confirmats · ${t.pendingCount} pendents${t.limit ? ` · límit ${t.limit}` : ''}">
+      <i class="seg confirmed" style="width:${(t.students.length / maxLoad) * 100}%"></i><i class="seg waiting" style="width:${(t.pendingCount / maxLoad) * 100}%"></i>
+      ${t.limit ? `<b class="limit-mark" style="left:${(t.limit / maxLoad) * 100}%" title="Límit: ${t.limit}"></b>` : ''}
+    </span>
+    <span class="hbar-value">${t.students.length}${t.limit ? `<small>/${t.limit}</small>` : ''}</span></div>`).join('');
+
+  const maxFirst = Math.max(1, ...data.teachers.map((t) => t.firstChoiceCount));
+  const popular = [...data.teachers].filter((t) => t.firstChoiceCount).sort((a, b) => b.firstChoiceCount - a.firstChoiceCount).slice(0, 8);
+  const popularRows = popular.map((t) => `<div class="hbar-row"><span class="hbar-label">${esc(listName(t))}</span>
+    <span class="hbar"><i class="seg violet" style="width:${(t.firstChoiceCount / maxFirst) * 100}%"></i></span>
+    <span class="hbar-value">${t.firstChoiceCount}</span></div>`).join('');
+
+  const byDept = new Map();
+  for (const t of data.teachers) {
+    const key = t.department || 'Sense departament';
+    byDept.set(key, (byDept.get(key) ?? 0) + t.students.length);
+  }
+  const deptList = [...byDept.entries()].filter(([, n]) => n).sort((a, b) => b[1] - a[1]);
+  const maxDept = Math.max(1, ...deptList.map(([, n]) => n));
+  const deptRows = deptList.map(([d, n]) => `<div class="hbar-row"><span class="hbar-label">${esc(d)}</span>
+    <span class="hbar"><i class="seg teal" style="width:${(n / maxDept) * 100}%"></i></span><span class="hbar-value">${n}</span></div>`).join('');
+
+  const full = data.teachers.filter((t) => t.limit && t.students.length >= t.limit).length;
+  const rejected = data.teachers.reduce((n, t) => n + t.rejectedCount, 0);
+  const deadline = election.deadline && data.open
+    ? kpi('Termini', esc(remaining(election.deadline).replace(/^queden? /, '')), esc(fmtDate(election.deadline)), election.deadline < Date.now() ? 'tone-alert' : 'tone-violet')
+    : kpi('Estat', data.open ? 'Obertes' : 'Tancades', esc(election.title), 'tone-violet');
+
+  return `${titleRow('Estadístiques', esc(election.title), excelButton())}
+    <div class="kpis">
+      ${kpi('Alumnat', stats.students)}
+      ${kpi('Participació', `${pct(voted, stats.students)}%`, `${voted} de ${stats.students} han votat`, 'tone-brand')}
+      ${kpi('Confirmats', stats.confirmed, `${pct(stats.confirmed, stats.students)}% del total`, 'tone-good')}
+      ${kpi("A l'espera", stats.waiting, '', 'tone-warn')}
+      ${kpi('Sense contestar', stats.unanswered)}
+      ${deadline}
+    </div>
+    <div class="split even stats-grid">
+      ${card('Participació per classe', `<ul class="key">${SEGMENTS.map((s) => `<li>${unit(s.key)}${esc(s.label)}</li>`).join('')}</ul>${classBarsHtml || '<p class="empty">Sense alumnat.</p>'}`)}
+      ${card('Càrrega del professorat', `<ul class="key"><li>${unit('confirmed')}Confirmats</li><li>${unit('waiting')}Pendents</li><li><b class="limit-key"></b>Límit</li></ul>${loadRows || '<p class="empty">Sense professorat.</p>'}
+        <p class="panel-note">${plural(full, 'professor ple', 'professors plens')} · ${plural(rejected, 'sol·licitud rebutjada', 'sol·licituds rebutjades')} en total.</p>`)}
+      ${card('Més triats en primer lloc', popularRows || '<p class="empty">Encara no ha votat ningú.</p>')}
+      ${card('Alumnat per departament del tutor', deptRows || '<p class="empty">Encara no hi ha tutors confirmats.</p>')}
+    </div>`;
+}
+
+// --- Historial ---
+
+const ACTION_TONE = (action) => (/eliminat|esborrad|rebutjad|denegat/i.test(action) ? 'tone-alert'
+  : /convocad|tancad|pas de curs|importat/i.test(action) ? 'tone-violet'
+    : /acceptad|assignat|concedit|alta|tutor/i.test(action) ? 'tone-good' : 'tone-brand');
+
+function historyView() {
+  const items = ui.history ?? [];
+  const actions = [...new Set(items.map((i) => i.action))].sort();
+  return `${titleRow('Historial', 'Qui ha fet què i quan. Es guarden les últimes 1000 accions.')}
+    ${panel('historial', 'Accions', items.length ? `${filterBar('historial', [{ name: 'accio', label: 'Acció', options: actions.map((a) => [plainText(a).replace(/\s+/g, '-'), a]) }], 'Buscar per persona o detall')}
+      <table class="stack-table history">
+        <thead class="sticky"><tr><th><span class="col">Quan</span></th><th><span class="col">Qui</span></th><th><span class="col">Acció</span></th><th><span class="col">Detall</span></th></tr></thead>
+        <tbody>${items.map((i) => `<tr ${rowAttrs('historial', `${i.actor_name} ${i.action} ${i.detail}`, { accio: plainText(i.action).replace(/\s+/g, '-') })}>
+          <td class="when" data-label="Quan"><time datetime="${new Date(i.at).toISOString()}" title="${esc(fmtShort(i.at))}">${esc(fmtShort(i.at))}</time></td>
+          <td class="person">${esc(i.actor_name)}</td>
+          <td><span class="pill ${ACTION_TONE(i.action)}">${esc(i.action)}</span></td>
+          <td class="detail">${i.detail ? esc(i.detail) : DASH}</td></tr>`).join('')}</tbody>
+      </table>${noMatches('historial')}` : '<p class="empty">Encara no hi ha cap acció registrada.</p>', { meta: String(items.length) })}`;
 }
 
 function adminsView(data) {
@@ -1106,8 +1452,12 @@ async function renderAdmin() {
   ui.counts = { unassigned: unassigned.length };
   renderHeader();
 
+  if (route() === 'historial') ui.history = (await api('/api/admin/historial')).items;
+
   const views = {
     eleccions: () => electionsView(data, unassigned, teacherName),
+    estadistiques: () => statsView(data),
+    historial: () => historyView(),
     'sense-tutor': () => unassignedView(data, unassigned),
     'pas-de-curs': () => promotionView(data),
     alumnat: () => studentsView(data, teacherName),
@@ -1129,6 +1479,61 @@ function bindAdmin(data, teacherById) {
     if (el) el[event] = handler;
   };
 
+  bindFilters();
+
+  on('deadlineForm', 'onsubmit', (event) => {
+    event.preventDefault();
+    const deadline = deadlineMs('deadlineInput');
+    if (!deadline) return ask('Tria una data i hora.', { alertOnly: true });
+    act(async () => {
+      await api('/api/admin/termini', 'PUT', { deadline });
+      ui.deadlineSaved = true;
+    });
+  });
+  on('clearDeadline', 'onclick', async () => {
+    if (await ask("Treure el termini? L'alumnat podrà contestar fins que tanques les eleccions.", { confirmLabel: 'Treure' })) {
+      act(async () => {
+        await api('/api/admin/termini', 'PUT', { deadline: null });
+        ui.deadlineSaved = false;
+      });
+    }
+  });
+  on('limitForm', 'onsubmit', (event) => {
+    event.preventDefault();
+    act(async () => {
+      await api('/api/admin/limit', 'PUT', { value: document.getElementById('limitDefault').value || null });
+      ui.limitSaved = true;
+    });
+  });
+  app.querySelectorAll('[data-limit]').forEach((input) => {
+    input.onchange = () => act(() => api(`/api/admin/professors/${input.dataset.limit}/limit`, 'PUT', { value: input.value || null }));
+  });
+
+  // Importar alumnado
+  const file = document.getElementById('importFile');
+  if (file) {
+    file.onchange = () => {
+      document.getElementById('importFileName').textContent = file.files[0]?.name ?? 'Tria un arxiu…';
+      document.getElementById('importCheck').disabled = !file.files[0];
+    };
+    on('importCheck', 'onclick', () => act(async () => {
+      const res = await fetch('/api/admin/importar', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file.files[0] });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "No s'ha pogut llegir l'arxiu.");
+      ui.importPreview = body;
+      ui.importResult = null;
+    }));
+  }
+  on('importCancel', 'onclick', () => {
+    ui.importPreview = null;
+    act(() => {});
+  });
+  on('importConfirm', 'onclick', () => act(async () => {
+    const rows = ui.importPreview.rows.filter((r) => r.action !== 'error');
+    ui.importResult = await api('/api/admin/importar/confirmar', 'POST', { rows });
+    ui.importPreview = null;
+  }));
+
   on('close', 'onclick', async () => {
     if (await ask("Tancar les eleccions? L'alumnat ja no podrà contestar.", { confirmLabel: 'Tancar les eleccions' })) act(() => api('/api/admin/terminar', 'POST'));
   });
@@ -1138,8 +1543,10 @@ function bindAdmin(data, teacherById) {
     if (election) warnings.push('Les assignacions de tutor actuals deixaran de ser vigents.');
     if (data.promotion === 'disponible') warnings.push("Encara no s'ha fet el pas de curs: l'alumnat mantindrà el curs actual i es perdran les anomalies marcades.");
     const title = document.getElementById('title').value;
+    const deadline = deadlineMs('newDeadline');
+    if (deadline) warnings.push(`L'alumnat podrà contestar fins al ${fmtDate(deadline, { weekday: 'long' })}.`);
     if (await ask(`Convocar les eleccions? ${warnings.join(' ')}`, { confirmLabel: 'Convocar eleccions' })) {
-      act(() => api('/api/admin/convocar', 'POST', { title }));
+      act(() => api('/api/admin/convocar', 'POST', { title, deadline }));
     }
   });
   on('create', 'onsubmit', (event) => {
