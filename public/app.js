@@ -386,12 +386,21 @@ function renderStudentData(data) {
       ${titleRow('Les meues dades', note, waiting
         ? '<button type="button" class="btn outline" id="cancelEdit">Cancel·lar la sol·licitud</button>'
         : '<button type="button" class="btn primary" id="editData">Editar</button>')}
-      <dl class="facts data-facts">
-        <div><dt>Nom</dt><dd>${esc(data.firstName) || DASH}</dd></div>
-        <div><dt>Cognoms</dt><dd>${esc(data.lastName) || DASH}</dd></div>
-        <div><dt>Curs</dt><dd>${data.curso ? ORDINAL[data.curso] : DASH}</dd></div>
-        <div><dt>Grup</dt><dd>${esc(data.grupo) || DASH}</dd></div>
-      </dl>
+      <section class="panel profile-card">
+        <div class="profile-head">
+          ${chip({ id: me.id, first_name: data.firstName, last_name: data.lastName }, true)}
+          <div>
+            <strong>${esc([data.firstName, data.lastName].filter(Boolean).join(' ')) || 'Sense nom'}</strong>
+            <span>Alumnat${data.curso ? ` · ${ORDINAL[data.curso]}${data.grupo ? ` ${esc(data.grupo)}` : ''}` : ''}</span>
+          </div>
+        </div>
+        <dl class="profile-grid">
+          <div><dt>Nom</dt><dd>${esc(data.firstName) || DASH}</dd></div>
+          <div><dt>Cognoms</dt><dd>${esc(data.lastName) || DASH}</dd></div>
+          <div><dt>Curs</dt><dd>${data.curso ? ORDINAL[data.curso] : DASH}</dd></div>
+          <div><dt>Grup</dt><dd>${esc(data.grupo) || DASH}</dd></div>
+        </dl>
+      </section>
     </div>`;
   }
   const edit = document.getElementById('editData');
@@ -1297,8 +1306,8 @@ function cookieNotice() {
   const bar = document.createElement('div');
   bar.className = 'cookie-bar';
   bar.setAttribute('role', 'region');
-  bar.setAttribute('aria-label', 'Avís de galetes');
-  bar.innerHTML = `<p>Fem servir només la galeta necessària per a mantindre't la sessió oberta i guardem algunes preferències en este navegador. No hi ha publicitat ni analítica. <a href="/cookies.html">Més informació</a></p>
+  bar.setAttribute('aria-label', 'Avís de cookies');
+  bar.innerHTML = `<p>Fem servir només la cookie necessària per a mantindre't la sessió oberta i guardem algunes preferències en este navegador. No hi ha publicitat ni analítica. <a href="/cookies.html">Més informació</a></p>
     <button type="button" class="btn primary">D'acord</button>`;
   bar.querySelector('button').onclick = () => {
     try { localStorage.setItem(COOKIES_KEY, '1'); } catch { /* res */ }
