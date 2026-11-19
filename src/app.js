@@ -8,8 +8,7 @@ import {
   electionStats, isFull, isOpen, latestElection, listStudents, listTeachers, previousTutor, releaseIfFull, studentStatus,
   studentsOfTeacher, teacherLimit, tutorOf, vetoedTeacherIds,
 } from './election.js';
-import { applyImport, previewImport } from './importar.js';
-import { buildReport, buildTemplate } from './informe-xlsx.js';
+import { buildReport } from './informe-xlsx.js';
 import { writeReport } from './pdf.js';
 
 export const DOMAIN = 'lescarolines.com';
@@ -91,6 +90,8 @@ export function createApp({ db, sendMail, appUrl, testLogin = false, broadcast =
   const root = join(import.meta.dirname, '..');
   const secureCookie = appUrl.startsWith('https://');
   app.use(express.json());
+  // Les pàgines legals viuen en /cookies, /privacitat i /avis-legal: els enllaços antics amb .html hi porten.
+  app.get(['/cookies.html', '/privacitat.html', '/avis-legal.html'], (req, res) => res.redirect(301, req.path.replace(/\.html$/, '')));
   app.use(express.static(join(root, 'public')));
   app.get('/vendor/Sortable.min.js', (req, res) => {
     res.sendFile(join(root, 'node_modules/sortablejs/Sortable.min.js'));
@@ -776,11 +777,15 @@ export function createApp({ db, sendMail, appUrl, testLogin = false, broadcast =
     res.json({ ok: true });
   });
 
+  // ?classe=1B: el cartell només d'una classe.
   app.get('/api/admin/informe.pdf', requireRole('admin'), (req, res) => {
     const election = latestElection(db);
     if (!election) throw httpError(404, 'Encara no hi ha eleccions.');
-    res.type('application/pdf').attachment('tutories-personals.pdf');
-    writeReport(db, election, res);
+    const classe = String(req.query.classe ?? '').toUpperCase();
+    if (classe && !GROUPS.includes(classe)) throw httpError(400, 'Classe no vàlida.');
+    const only = classe ? { curso: Number(classe[0]), grupo: classe[1] } : null;
+    res.type('application/pdf').attachment(only ? `tutories-personals-${classe}.pdf` : 'tutories-personals.pdf');
+    writeReport(db, election, res, only);
   });
 
   app.get('/api/admin/informe.xlsx', requireRole('admin'), (req, res) => {
@@ -788,32 +793,6 @@ export function createApp({ db, sendMail, appUrl, testLogin = false, broadcast =
     res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
       .attachment(`tutoria-personal-${stamp}.xlsx`)
       .send(buildReport(db));
-  });
-
-  app.get('/api/admin/plantilla.xlsx', requireRole('admin'), (req, res) => {
-    res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-      .attachment('plantilla-alumnat.xlsx')
-      .send(buildTemplate());
-  });
-
-  // Importar: primero se sube el archivo y se devuelve la vista previa; después se confirman las filas.
-  app.post('/api/admin/importar', requireRole('admin'), express.raw({ type: () => true, limit: '5mb' }), (req, res) => {
-    if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw httpError(400, 'Tria un arxiu Excel (.xlsx) o CSV.');
-    try {
-      res.json(previewImport(db, req.body));
-    } catch (err) {
-      if (err.status) throw err;
-      throw httpError(400, "No s'ha pogut llegir l'arxiu. Ha de ser un Excel (.xlsx) o un CSV.");
-    }
-  });
-
-  app.post('/api/admin/importar/confirmar', requireRole('admin'), express.json({ limit: '2mb' }), (req, res) => {
-    const result = tx(db, () => {
-      const summary = applyImport(db, req.body?.rows);
-      audit(db, req.user, 'Alumnat importat', `${summary.created} nous, ${summary.updated} actualitzats${summary.skipped ? `, ${summary.skipped} descartats` : ''}`);
-      return summary;
-    });
-    res.json({ ok: true, ...result });
   });
 
   app.get('/api/admin/historial', requireRole('admin'), (req, res) => {

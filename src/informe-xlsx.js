@@ -181,16 +181,3 @@ export function buildReport(db) {
   ], { title: `Tutoria personal${election ? ` · ${election.title}` : ''}` });
 }
 
-// Plantilla para importar alumnado, con dos filas de ejemplo.
-export function buildTemplate() {
-  const head = ['Correu', 'Nom', 'Cognoms', 'Curs', 'Grup'];
-  const intro = banner('Plantilla per a importar alumnat', 'Omple una fila per alumne. El correu pot ser només l\'usuari (abans de @lescarolines.com). Curs: 1-4. Grup: A o B.', head.length);
-  intro.rows.push({ height: 22, cells: head.map((v) => ({ v, s: S.header })) });
-  [['marta.soler', 'Marta', 'Soler Vidal', 1, 'A'], ['pau.ferrer', 'Pau', 'Ferrer Martí', 2, 'B']].forEach((row, i) => {
-    intro.rows.push({ cells: row.map((v, j) => ({ v, s: j >= 3 ? S.num(i % 2 === 1) : S.cell(i % 2 === 1) })) });
-  });
-  return writeWorkbook([{
-    name: 'Alumnat', tabColor: COLORS.brand, ...intro, freeze: { row: 4 },
-    columns: [{ width: 30 }, { width: 18 }, { width: 26 }, { width: 8 }, { width: 8 }],
-  }], { title: 'Plantilla per a importar alumnat' });
-}

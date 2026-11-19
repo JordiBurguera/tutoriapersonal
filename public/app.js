@@ -17,7 +17,7 @@ function loadClosedPanels() {
 }
 
 // Lo que debe sobrevivir a un repintado por aviso en tiempo real.
-const ui = { filters: {}, importPreview: null, importResult: null, limitSaved: false, history: null, previewId: null, classKey: null, searchQuery: '', meetingSaved: false, groupSaved: false, groupOpen: false, closedPanels: loadClosedPanels(), promotionClasses: new Set(), promotionReview: false, promotionResult: null, navOpen: false, counts: {}, dataSaved: false, studentVoting: true };
+const ui = { filters: {}, limitSaved: false, history: null, previewId: null, classKey: null, searchQuery: '', meetingSaved: false, groupSaved: false, groupOpen: false, closedPanels: loadClosedPanels(), promotionClasses: new Set(), promotionReview: false, promotionResult: null, navOpen: false, counts: {}, dataSaved: false, studentVoting: true };
 
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const ORDINAL = { 1: '1r', 2: '2n', 3: '3r', 4: '4t' };
@@ -337,12 +337,12 @@ function renderHeader() {
     ${me ? `<div id="navSheet" class="nav-sheet${ui.navOpen ? ' open' : ''}">
       ${nav}
       ${sideTools}
-      ${groups.length ? `<p class="legal-links"><a href="/avis-legal.html">Avís legal</a><a href="/privacitat.html">Privacitat</a><a href="/cookies.html">Cookies</a></p>` : ''}
+      ${groups.length ? `<p class="legal-links"><a href="/avis-legal">Avís legal</a><a href="/privacitat">Privacitat</a><a href="/cookies">Cookies</a></p>` : ''}
       <div class="user-row">
         ${chip({ id: me.id, first_name: me.firstName, last_name: me.lastName })}
         <div class="who"><strong>${esc(me.firstName)} ${esc(me.lastName)}</strong><span>${esc(ROLE_LABEL[me.role])}</span></div>
         ${groups.length ? '' : `${bellButton()}${themeButton()}`}
-        <button type="button" id="logout" class="btn quiet">Eixir</button>
+        <button type="button" id="logout" class="btn quiet">Surt</button>
       </div>
     </div>` : ''}`;
   header.querySelectorAll('[data-theme-toggle]').forEach((btn) => { btn.onclick = toggleTheme; });
@@ -375,7 +375,7 @@ function renderLogin() {
         <p class="lead">Tria qui vols que et tutoritze este curs.</p>
         ${emailField('username', "Correu de l'institut")}
         <button class="btn primary">Envia'm l'enllaç d'accés</button>
-        <p class="fine">En entrar, el centre tractarà les teues dades per a assignar-te tutor. Ho tens explicat a la <a href="/privacitat.html">política de privacitat</a>.</p>
+        <p class="fine">En entrar, el centre tractarà les teues dades per a assignar-te tutor. Ho tens explicat a la <a href="/privacitat">política de privacitat</a>.</p>
         <p id="msg"></p>
       </form>
       <section class="panel how">
@@ -1131,7 +1131,12 @@ function electionsView(data, unassigned, teacherName) {
   const heading = election
     ? `${esc(election.title)} <span class="pill">${open ? 'Obertes' : 'Tancades'}</span>`
     : 'Eleccions';
-  const pdf = '<a class="btn outline" href="/api/admin/informe.pdf" title="Descarregar el cartell en PDF amb tutors, alumnes i llocs de reunió">Descarregar cartell</a>';
+  const classes = Object.entries(ORDINAL).flatMap(([curso, ord]) => ['A', 'B'].map((g) => [`${curso}${g}`, `${ord} ${g}`]));
+  const pdf = `<span class="poster-pick">
+    <a class="btn outline" id="posterLink" href="/api/admin/informe.pdf" title="Descarregar el cartell en PDF amb tutors, alumnes i llocs de reunió">Descarregar cartell</a>
+    <select id="posterClass" aria-label="Classe del cartell" title="Tria una classe per a descarregar només el seu cartell">
+      <option value="">Totes</option>${classes.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+    </select></span>`;
   const actions = !election ? ''
     : open ? `${pdf}${excelButton()}<button id="close" type="button" class="btn primary" ${canClose ? '' : 'disabled'}>Tancar les eleccions</button>`
       : `${pdf}${excelButton()}${convokeForm()}`;
@@ -1150,7 +1155,7 @@ function electionsView(data, unassigned, teacherName) {
       <div class="stack">
         ${panel('participacio', 'Participació', `
           <div class="ring-block">${donut(stats)}${legend(stats)}</div>
-          <p class="panel-note">Compta l'alumnat que ha iniciat sessió o que s'ha importat.</p>`)}
+          <p class="panel-note">Compta l'alumnat que ha iniciat sessió.</p>`)}
         <div class="grow-last" style="display:contents">
         ${panel('sense-tutor', 'Sense tutor', nextUp.length ? `
           <ul class="rows">${nextUp.map((s) => `<li><div class="grow">${esc(listName(s))}<span class="sub">${esc(classLabel(s))}</span></div>${stateTag(s.status)}</li>`).join('')}</ul>
@@ -1181,46 +1186,6 @@ const CLASS_FILTER = { name: 'classe', label: 'Classe', options: [1, 2, 3, 4].fl
 const STATUS_FILTER = { name: 'estat', label: 'Estat', options: [['asignado', 'Confirmat'], ['en_proceso', "A l'espera"], ['agotada', 'Rebutjat per tota la llista'], ['por_contestar', 'Sense contestar'], ['sin_respuesta', 'No va contestar']] };
 const studentFilterFields = (s) => ({ classe: s.curso ? `${s.curso}${s.grupo}` : 'none', estat: s.status, tutor: s.tutorId ?? 'none' });
 
-function importPanel() {
-  const preview = ui.importPreview;
-  const result = ui.importResult;
-  let body = `<p class="lead" style="margin-bottom:12px">Puja un Excel (.xlsx) o un CSV amb les columnes <strong>Correu, Nom, Cognoms, Curs i Grup</strong>. També val una columna «Classe» amb valors com «2n B». Si l'alumne ja existix, s'actualitzen les seues dades.</p>
-    <div class="import-actions">
-      <label class="file-pick">${icon('upload')}<span id="importFileName">Tria un arxiu…</span><input type="file" id="importFile" accept=".xlsx,.csv,text/csv"></label>
-      <button type="button" class="btn primary" id="importCheck" disabled>Revisar</button>
-      <a class="btn quiet" href="/api/admin/plantilla.xlsx">${icon('download')}Plantilla d'Excel</a>
-    </div>`;
-  if (result) {
-    body += `<p class="msg-ok" style="margin-top:12px">Importació feta: ${plural(result.created, 'alumne nou', 'alumnes nous')} i ${plural(result.updated, 'actualitzat', 'actualitzats')}${result.skipped ? `, ${result.skipped} descartats` : ''}.</p>`;
-  }
-  if (preview) {
-    const count = (action) => preview.rows.filter((r) => r.action === action).length;
-    const valid = preview.rows.filter((r) => r.action !== 'error');
-    const tag = { nou: '<span class="pill pill-new">Nou</span>', actualitza: '<span class="pill pill-update">Actualitza</span>', error: '<span class="pill pill-error">Error</span>' };
-    body += `<div class="import-preview">
-      <div class="import-summary">
-        <span class="pill pill-new">${plural(count('nou'), 'nou', 'nous')}</span>
-        <span class="pill pill-update">${plural(count('actualitza'), 'a actualitzar', 'a actualitzar')}</span>
-        ${count('error') ? `<span class="pill pill-error">${plural(count('error'), 'error', 'errors')}</span>` : ''}
-      </div>
-      <div class="import-table"><table class="stack-table">
-        <thead><tr><th><span class="col">Fila</span></th><th><span class="col">Alumne</span></th><th><span class="col">Classe</span></th><th><span class="col">Resultat</span></th></tr></thead>
-        <tbody>${preview.rows.map((r) => `<tr class="${r.action === 'error' ? 'row-error' : ''}">
-          <td data-label="Fila">${r.line}</td>
-          <td class="person">${esc([r.lastName, r.firstName].filter(Boolean).join(', ') || '—')}<span class="sub">${esc(r.username)}</span></td>
-          <td>${r.curso && r.grupo ? esc(`${ORDINAL[r.curso]} ${r.grupo}`) : DASH}</td>
-          <td>${tag[r.action]}${r.error ? `<span class="sub">${esc(r.error)}</span>` : ''}</td></tr>`).join('')}</tbody>
-      </table></div>
-      <div class="form-actions">
-        <button type="button" class="btn primary" id="importConfirm" ${valid.length ? '' : 'disabled'}>Importar ${plural(valid.length, 'alumne', 'alumnes')}</button>
-        <button type="button" class="btn quiet" id="importCancel">Cancel·lar</button>
-      </div>
-      ${count('error') ? '<p class="panel-note">Les files amb error no s\'importaran.</p>' : ''}
-    </div>`;
-  }
-  return panel('importar', 'Importar alumnat des d\'Excel', body);
-}
-
 function studentsView(data, teacherName) {
   const { election, open } = data;
   const teacherOptions = `<option value="">— Professor —</option>` + data.teachers.map((t) => `<option value="${t.id}">${esc(listName(t))}</option>`).join('');
@@ -1233,11 +1198,10 @@ function studentsView(data, teacherName) {
       <td>${s.tutorId ? `<span class="who-cell">${chip(data.teachers.find((t) => t.id === s.tutorId))}${esc(teacherName(s.tutorId))}</span>` : '<span class="dash">sense tutor</span>'}</td>
       <td class="ctl">${open && s.hasBallot ? `<button type="button" class="btn quiet" data-clear-answer="${s.id}">Esborrar</button>` : ''}</td>
       ${accountActions(s, 'alumno', data)}</tr>`).join('')}</tbody>
-  </table>${noMatches('alumnat')}` : '<p class="empty">Encara no hi ha alumnat. Importa\'l des d\'Excel o espera que inicie sessió.</p>', { meta: String(data.students.length) });
-  const title = titleRow('Alumnat', "L'alumnat es dona d'alta sol la primera vegada que inicia sessió, o el pots importar des d'Excel.", excelButton());
-  if (!(election && !open)) return `${title}<div class="stack">${importPanel()}${table}</div>`;
+  </table>${noMatches('alumnat')}` : '<p class="empty">Encara no hi ha alumnat. Apareixerà quan inicie sessió.</p>', { meta: String(data.students.length) });
+  const title = titleRow('Alumnat', "L'alumnat es dona d'alta sol la primera vegada que inicia sessió.", excelButton());
+  if (!(election && !open)) return `${title}<div class="stack">${table}</div>`;
   return `${title}<div class="stack">
-    ${importPanel()}
     ${panel('alumne-nou', 'Alumne nou a mitjan curs', `
       <p class="lead" style="margin-bottom:12px">Crea el compte i assigna-li tutor directament, sense confirmació.</p>
       <form id="newStudent" class="form-strip new-student">
@@ -1373,7 +1337,7 @@ function statsView(data) {
 // --- Historial ---
 
 const ACTION_TONE = (action) => (/eliminat|esborrad|rebutjad|denegat/i.test(action) ? 'tone-alert'
-  : /convocad|tancad|pas de curs|importat/i.test(action) ? 'tone-violet'
+  : /convocad|tancad|pas de curs/i.test(action) ? 'tone-violet'
     : /acceptad|assignat|concedit|alta|tutor/i.test(action) ? 'tone-good' : 'tone-brand');
 
 function historyView() {
@@ -1451,31 +1415,11 @@ function bindAdmin(data, teacherById) {
     input.onchange = () => act(() => api(`/api/admin/professors/${input.dataset.limit}/limit`, 'PUT', { value: input.value || null }));
   });
 
-  // Importar alumnado
-  const file = document.getElementById('importFile');
-  if (file) {
-    file.onchange = () => {
-      document.getElementById('importFileName').textContent = file.files[0]?.name ?? 'Tria un arxiu…';
-      document.getElementById('importCheck').disabled = !file.files[0];
-    };
-    on('importCheck', 'onclick', () => act(async () => {
-      const res = await fetch('/api/admin/importar', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file.files[0] });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || "No s'ha pogut llegir l'arxiu.");
-      ui.importPreview = body;
-      ui.importResult = null;
-    }));
-  }
-  on('importCancel', 'onclick', () => {
-    ui.importPreview = null;
-    act(() => {});
+  on('posterClass', 'onchange', (e) => {
+    const v = e.target.value;
+    document.getElementById('posterLink').href = `/api/admin/informe.pdf${v ? `?classe=${v}` : ''}`;
+    document.getElementById('posterLink').textContent = v ? `Descarregar cartell de ${e.target.selectedOptions[0].textContent}` : 'Descarregar cartell';
   });
-  on('importConfirm', 'onclick', () => act(async () => {
-    const rows = ui.importPreview.rows.filter((r) => r.action !== 'error');
-    ui.importResult = await api('/api/admin/importar/confirmar', 'POST', { rows });
-    ui.importPreview = null;
-  }));
-
   on('close', 'onclick', async () => {
     if (await ask("Tancar les eleccions? L'alumnat ja no podrà contestar.", { confirmLabel: 'Tancar les eleccions' })) act(() => api('/api/admin/terminar', 'POST'));
   });
@@ -1654,7 +1598,7 @@ function cookieNotice() {
   bar.className = 'cookie-bar';
   bar.setAttribute('role', 'region');
   bar.setAttribute('aria-label', 'Avís de cookies');
-  bar.innerHTML = `<p>Fem servir només la cookie necessària per a mantindre't la sessió oberta i guardem algunes preferències en este navegador. No hi ha publicitat ni analítica. <a href="/cookies.html">Més informació</a></p>
+  bar.innerHTML = `<p>Fem servir només la cookie necessària per a mantindre't la sessió oberta i guardem algunes preferències en este navegador. No hi ha publicitat ni analítica. <a href="/cookies">Més informació</a></p>
     <button type="button" class="btn primary">D'acord</button>`;
   bar.querySelector('button').onclick = () => {
     try { localStorage.setItem(COOKIES_KEY, '1'); } catch { /* res */ }
