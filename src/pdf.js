@@ -8,17 +8,31 @@ const font = (name) => fileURLToPath(new URL(`./fonts/Geist-${name}.ttf`, import
 const LOGO = fileURLToPath(new URL('../public/assets/logo-lescarolines.png', import.meta.url));
 const LOGO_RATIO = 292 / 75;
 // A 146 pt el PNG de 292 px queda a unos 144 ppp: es lo más grande que aguanta bien impreso.
-const LOGO_WIDTH = 146;
-const LOGO_PLATE = { width: 166, height: 58 };
+const LOGO_WIDTH = 160;
 
 // Cartel A3 vertical. Mismos colores que la aplicación: tinta, un azul y un fondo azul-gris.
 const PAGE = { size: 'A3', width: 841.89, height: 1190.55, margin: 28 };
 const INK = '#141414';
 const MUTED = '#5d6168';
-const ON_INK = '#c9ccd1';
 const RULE = '#e3e6eb';
-const TINT = '#f2f4f7';
+const TINT = '#eaf1fc';
+const ZEBRA = '#f6f8fc';
 const HUE = '#1d5fbf';
+const HUE_LIGHT = '#4f86e0';
+const ACCENT = ['#1d5fbf', '#6558ad', '#2e9d85'];
+const LABEL = '#7a8597';
+const RADIUS = 9;
+
+// Rectángulo con solo las esquinas de arriba redondeadas.
+function topRounded(doc, x, y, w, h, r) {
+  r = Math.min(r, h, w / 2);
+  doc.moveTo(x, y + h).lineTo(x, y + r).quadraticCurveTo(x, y, x + r, y)
+    .lineTo(x + w - r, y).quadraticCurveTo(x + w, y, x + w, y + r).lineTo(x + w, y + h).closePath();
+}
+const headFill = (doc, table, x, y, w) => {
+  const [a, b] = table.tone === INK ? [HUE, HUE_LIGHT] : ['#6b7280', '#9aa1ad'];
+  return doc.linearGradient(x, y, x + w, y).stop(0, a).stop(1, b);
+};
 const COLUMN_GAP = 14;
 const TABLE_GAP = 14;
 const FOOTER = 34;
@@ -133,27 +147,34 @@ function drawTable(doc, table, placed, measured, x, width, scale) {
   const text = (value, name, size, color, tx, ty, options) => doc.font(name).fontSize(size * scale).fillColor(color).text(value, tx, ty, options);
 
   if (placed.continued) {
-    doc.rect(x, y, width, metrics.contBand).fill(table.tone);
+    topRounded(doc, x, y, width, metrics.contBand, RADIUS * scale);
+    doc.fill(headFill(doc, table, x, y, width));
     text(`${table.title} (continuació)`, 'bold', 10.5, '#ffffff', x + CELL_X, y + 5 * scale, { width: inner });
     y += metrics.contBand;
   } else {
-    doc.rect(x, y, width, metrics.band).fill(table.tone);
+    topRounded(doc, x, y, width, metrics.band, RADIUS * scale);
+    doc.fill(headFill(doc, table, x, y, width));
     const countWidth = 32 * scale;
     text(table.title, 'bold', 13, '#ffffff', x + CELL_X, y + 8 * scale, { width: inner - countWidth });
-    text(String(table.students.length), 'bold', 13, '#ffffff', x + width - CELL_X - countWidth, y + 8 * scale, { width: countWidth, align: 'right', features: ['tnum'] });
-    if (table.subtitle) text(table.subtitle, 'regular', 9.5, ON_INK, x + CELL_X, y + 8 * scale + metrics.nameH + 2, { width: inner });
+    // El número d'alumnes, en una càpsula blanca.
+    const pillH = 17 * scale;
+    const pillW = Math.max(pillH, doc.font('bold').fontSize(10.5 * scale).widthOfString(String(table.students.length)) + 12 * scale);
+    const pillX = x + width - CELL_X - pillW;
+    doc.roundedRect(pillX, y + 7 * scale, pillW, pillH, pillH / 2).fill('#ffffff');
+    text(String(table.students.length), 'bold', 10.5, table.tone === INK ? HUE : MUTED, pillX, y + 9.5 * scale, { width: pillW, align: 'center', features: ['tnum'] });
+    if (table.subtitle) text(table.subtitle, 'regular', 9.5, '#e6eefc', x + CELL_X, y + 8 * scale + metrics.nameH + 2, { width: inner });
     y += metrics.band;
     if (table.place !== undefined) {
       doc.rect(x, y, width, metrics.placeBand).fill(TINT);
-      text('Lloc de reunió', 'regular', 8.5, MUTED, x + CELL_X, y + 7 * scale, { width: inner });
+      text('LLOC DE REUNIÓ', 'bold', 7.5, '#4f6b99', x + CELL_X, y + 7 * scale, { width: inner, characterSpacing: 0.6 });
       text(table.place || 'sense definir', 'bold', 11, table.place ? INK : MUTED, x + CELL_X, y + 7 * scale + metrics.placeLabelH + 3, { width: inner });
       y += metrics.placeBand;
     }
   }
 
   // Cabecera de columnas de la tabla.
-  text(table.students.length ? 'Alumne' : '', 'regular', 8.5, MUTED, x + CELL_X, y + 6 * scale, { width: inner });
-  if (table.students.length && !table.hideClass) text('Classe', 'regular', 8.5, MUTED, x + width - CELL_X - 40 * scale, y + 6 * scale, { width: 40 * scale, align: 'right' });
+  text(table.students.length ? 'ALUMNE' : '', 'bold', 7.5, LABEL, x + CELL_X, y + 7 * scale, { width: inner, characterSpacing: 0.6 });
+  if (table.students.length && !table.hideClass) text('CLASSE', 'bold', 7.5, LABEL, x + width - CELL_X - 40 * scale, y + 7 * scale, { width: 40 * scale, align: 'right', characterSpacing: 0.6 });
   y += metrics.tableHeadH;
 
   if (!table.students.length) {
@@ -162,39 +183,43 @@ function drawTable(doc, table, placed, measured, x, width, scale) {
   }
   for (let i = placed.start; i < placed.end; i += 1) {
     const student = table.students[i];
+    if (i % 2) doc.rect(x, y, width, rows[i]).fill(ZEBRA);
     doc.moveTo(x, y).lineTo(x + width, y).lineWidth(0.6).strokeColor(RULE).stroke();
     text(displayName(student), 'regular', 10.5, INK, x + CELL_X, y + 4 * scale, { width: table.hideClass ? inner : inner - CLASS_WIDTH * scale });
     if (!table.hideClass) text(classLabel(student), 'regular', 10.5, MUTED, x + width - CELL_X - CLASS_WIDTH * scale, y + 4 * scale, { width: CLASS_WIDTH * scale, align: 'right', features: ['tnum'] });
     y += rows[i];
   }
-  doc.moveTo(x, y).lineTo(x + width, y).lineWidth(0.6).strokeColor(RULE).stroke();
+  doc.moveTo(x, y).lineTo(x + width, y).lineWidth(1.2).strokeColor(table.tone === INK ? '#c9d8f2' : RULE).stroke();
 }
 
 function bannerMetrics(doc, election, open) {
   const width = PAGE.width - PAGE.margin * 2;
-  const helpWidth = 250;
-  const textWidth = width - helpWidth - 26 * 2 - 24;
-  const titleH = doc.font('bold').fontSize(23).heightOfString(election.title, { width: textWidth });
+  const helpWidth = 270;
+  const textWidth = width;
+  const titleH = doc.font('bold').fontSize(24).heightOfString(election.title, { width: textWidth });
   const help = open
     ? 'Llista provisional: les eleccions encara estan obertes.'
     : 'Busca el teu nom. El teu tutor i el lloc de reunió estan a la capçalera de la teua taula.';
-  const helpH = doc.font('regular').fontSize(14).heightOfString(help, { width: helpWidth });
-  return { width, helpWidth, textWidth, titleH, help, height: Math.max(84 + titleH + 22, 22 + LOGO_PLATE.height + 12 + helpH + 22) };
+  const helpH = doc.font('regular').fontSize(12.5).heightOfString(help, { width: helpWidth - 32 });
+  const top = Math.max(LOGO_WIDTH / LOGO_RATIO, helpH + 24) + 22;
+  return { width, helpWidth, textWidth, titleH, help, helpH, top, height: top + 58 + titleH + 18 + 6 };
 }
 
+// Capçalera del cartell: fons blanc, el logo tal qual (transparent), títol en blau i una franja de color.
 function drawBanner(doc, election, banner) {
-  const { width, helpWidth, textWidth } = banner;
+  const { width, helpWidth, textWidth, helpH, top } = banner;
   const x = PAGE.margin;
   const y = PAGE.margin;
-  doc.rect(x, y, width, banner.height).fill(HUE);
-  const textX = x + 26;
-  const rightX = x + width - helpWidth - 26;
-  doc.font('bold').fontSize(50).fillColor('#ffffff').text('Tutoria personal', textX, y + 20, { width: textWidth, lineBreak: false });
-  doc.font('bold').fontSize(23).text(election.title, textX, y + 84, { width: textWidth });
-  doc.font('regular').fontSize(14).text(banner.help, rightX, y + 22 + LOGO_PLATE.height + 12, { width: helpWidth });
-  // El logo es negro: sobre el azul no se leería, así que va en una placa blanca.
-  doc.rect(rightX, y + 22, LOGO_PLATE.width, LOGO_PLATE.height).fill('#ffffff');
-  doc.image(LOGO, rightX + (LOGO_PLATE.width - LOGO_WIDTH) / 2, y + 22 + (LOGO_PLATE.height - LOGO_WIDTH / LOGO_RATIO) / 2, { width: LOGO_WIDTH });
+  doc.image(LOGO, x, y + 4, { width: LOGO_WIDTH });
+  const helpX = x + width - helpWidth;
+  doc.roundedRect(helpX, y, helpWidth, helpH + 24, 14).fill(TINT);
+  doc.font('regular').fontSize(12.5).fillColor('#2c4a7c').text(banner.help, helpX + 16, y + 12, { width: helpWidth - 32 });
+  doc.font('bold').fontSize(48).fillColor(HUE).text('Tutoria personal', x, y + top, { width: textWidth, lineBreak: false });
+  doc.font('bold').fontSize(24).fillColor(INK).text(election.title, x, y + top + 58, { width: textWidth });
+  const barY = y + top + 58 + banner.titleH + 18;
+  const grad = doc.linearGradient(x, barY, x + width, barY);
+  ACCENT.forEach((c, k) => grad.stop(k / (ACCENT.length - 1), c));
+  doc.roundedRect(x, barY, width, 6, 3).fill(grad);
 }
 
 // Logo pequeño arriba a la derecha en las hojas sin banda azul.
@@ -213,7 +238,7 @@ function drawFooter(doc, label, page, pages) {
   const y = PAGE.height - PAGE.margin - 10;
   const width = PAGE.width - PAGE.margin * 2;
   doc.font('regular').fontSize(9).fillColor(MUTED);
-  doc.text(label, PAGE.margin, y, { width: width - 90, lineBreak: false });
+  doc.text(`Escola Les Carolines · ${label}`, PAGE.margin, y, { width: width - 90, lineBreak: false });
   doc.text(`Pàgina ${page} de ${pages}`, PAGE.margin, y, { width, align: 'right', lineBreak: false, features: ['tnum'] });
 }
 
@@ -229,7 +254,10 @@ function pendingByClass(students) {
 }
 
 // Escribe en `out` el cartel: una tabla por tutor y, en hoja aparte, quien aún no tiene tutor.
-export function writeReport(db, election, out) {
+// Con `only` ({ curso, grupo }) sale solo esa clase: cada tutor con su alumnado de la clase.
+export function writeReport(db, election, out, only = null) {
+  const inClass = (s) => !only || (s.curso === only.curso && s.grupo === only.grupo);
+  const classTitle = only ? `${ORDINAL[only.curso]} ${only.grupo}` : null;
   const doc = new PDFDocument({
     autoFirstPage: false,
     lang: 'ca-ES',
@@ -245,10 +273,13 @@ export function writeReport(db, election, out) {
     title: displayName(teacher),
     subtitle: teacher.department ?? '',
     place: teacher.meeting_place ?? '',
-    students: studentsOfTeacher(db, election.id, teacher.id),
+    students: studentsOfTeacher(db, election.id, teacher.id).filter(inClass),
     tone: INK,
-  }));
-  const unassigned = listStudents(db, election).filter((s) => !s.tutorId);
+    hideClass: Boolean(only),
+  })).filter((table) => !only || table.students.length);
+  const unassigned = listStudents(db, election).filter((s) => !s.tutorId && inClass(s));
+  // En el cartel de una clase, la clase va junto al título.
+  if (classTitle) election = { ...election, title: `${election.title} · ${classTitle}` };
 
   const banner = bannerMetrics(doc, election, open);
   const contentWidth = PAGE.width - PAGE.margin * 2;
@@ -279,6 +310,10 @@ export function writeReport(db, election, out) {
     doc.addPage({ size: PAGE.size, margin: 0 });
     if (pageIndex === 0) drawBanner(doc, election, banner);
     else drawRunningHead(doc, election);
+    if (pageIndex === 0 && !tutors.length) {
+      doc.font('regular').fontSize(16).fillColor(MUTED)
+        .text(classTitle ? `Encara ningú de ${classTitle} té tutor assignat.` : 'Encara no hi ha tutors assignats.', PAGE.margin, area.firstTop + 10, { width: contentWidth });
+    }
     for (const placed of placedTables) {
       const x = PAGE.margin + placed.column * (layout.width + COLUMN_GAP);
       drawTable(doc, tutors[placed.index], placed, layout.measured[placed.index], x, layout.width, layout.scale);

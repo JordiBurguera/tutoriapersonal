@@ -82,3 +82,27 @@ test('cartell: se genera con nombres largos, sin alumnado y con alumnado sin tut
   assert.ok(pages >= 3, `páginas: ${pages}`);
   assert.match(pdf.toString('latin1'), /\/Subtype \/Image/, 'lleva el logo');
 });
+
+test('cartell: per classe, només l\'alumnat d\'eixa classe', async () => {
+  const db = openDb(':memory:');
+  const insert = db.prepare(`INSERT INTO users (username, first_name, last_name, role, curso, grupo) VALUES (?,?,?,?,?,?)`);
+  const t1 = Number(insert.run('t1', 'Marta', 'Ferrer', 'profesor', null, null).lastInsertRowid);
+  insert.run('t2', 'Pau', 'Llopis', 'profesor', null, null);
+  db.prepare(`INSERT INTO elections (title, opened_at) VALUES (?, ?)`).run('Curs 2026-27', Date.now());
+  for (const [name, curso, grupo] of [['Alba', 1, 'B'], ['Bru', 1, 'A'], ['Cesc', 2, 'B']]) {
+    const s = Number(insert.run(name.toLowerCase(), name, 'X', 'alumno', curso, grupo).lastInsertRowid);
+    db.prepare(`INSERT INTO requests (election_id, student_id, teacher_id, status) VALUES (1, ?, ?, 'confirmada')`).run(s, t1);
+  }
+  const render = (only) => new Promise((resolve) => {
+    const chunks = [];
+    const out = new Writable({ write(chunk, _, done) { chunks.push(chunk); done(); } });
+    out.on('finish', () => resolve(Buffer.concat(chunks)));
+    writeReport(db, db.prepare('SELECT * FROM elections').get(), out, only);
+  });
+  const all = await render(null);
+  const oneB = await render({ curso: 1, grupo: 'B' });
+  const empty = await render({ curso: 4, grupo: 'A' });
+  for (const pdf of [all, oneB, empty]) assert.equal(pdf.subarray(0, 4).toString(), '%PDF');
+  // Amb una sola classe hi ha menys text que amb totes.
+  assert.ok(oneB.length < all.length);
+});

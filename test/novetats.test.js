@@ -1,10 +1,9 @@
-// Límite de alumnos, fecha límite, avisos, historial, Excel e importación.
+// Límite de alumnos, avisos, historial y Excel.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.js';
 import { openDb } from '../src/db.js';
-import { readTable, writeWorkbook } from '../src/xlsx.js';
-import { parseCurso, parseGrupo } from '../src/importar.js';
+import { readTable } from '../src/xlsx.js';
 
 const db = openDb(':memory:');
 const mails = [];
@@ -119,40 +118,6 @@ test('Excel: el informe se descarga y se puede leer', async () => {
   const rows = readTable(r.data);
   assert.equal(rows[0][0], 'Tutoria personal · Resum');
   assert.equal((await profs['prof.a']('/api/admin/informe.xlsx')).status, 403);
-  const template = await admin('/api/admin/plantilla.xlsx');
-  assert.equal(template.status, 200);
-});
-
-test('importar: vista previa con errores y confirmación', async () => {
-  assert.equal(parseCurso('3r'), 3);
-  assert.equal(parseGrupo('2n B'), 'B');
-  assert.equal(parseGrupo('1ESO A'), 'A');
-  const file = writeWorkbook([{ name: 'A', rows: [
-    { cells: ['Títol qualsevol'] },
-    { cells: ['Correu', 'Nom', 'Cognoms', 'Classe'] },
-    { cells: ['nou.alumne@lescarolines.com', 'Nou', 'Alumne', '3r A'] },
-    { cells: ['alm.uno', 'Uno', 'Canviat', '2n B'] },
-    { cells: ['prof.a', 'X', 'Y', '1A'] },
-    { cells: ['algu@gmail.com', 'X', 'Y', '1A'] },
-    { cells: ['sense.curs', 'X', 'Y', ''] },
-  ] }]);
-  const preview = await admin('/api/admin/importar', 'POST', file, true);
-  assert.equal(preview.status, 200);
-  const actions = preview.data.rows.map((r) => r.action);
-  assert.deepEqual(actions, ['nou', 'actualitza', 'error', 'error', 'error']);
-  const ok = preview.data.rows.filter((r) => r.action !== 'error');
-  const done = await admin('/api/admin/importar/confirmar', 'POST', { rows: ok });
-  assert.equal(done.status, 200);
-  assert.equal(done.data.created, 1);
-  assert.equal(done.data.updated, 1);
-  const nou = db.prepare('SELECT * FROM users WHERE username = ?').get('nou.alumne');
-  assert.equal(nou.curso, 3);
-  assert.equal(nou.role, 'alumno');
-  // CSV con punto y coma.
-  const csv = Buffer.from('﻿usuari;nom;cognoms;curs;grup\ncsv.alumne;Csv;Prova;4;B\n');
-  const csvPreview = await admin('/api/admin/importar', 'POST', csv, true);
-  assert.deepEqual(csvPreview.data.rows.map((r) => [r.username, r.curso, r.grupo, r.action]), [['csv.alumne', 4, 'B', 'nou']]);
-  // Sin columna de correo.
-  const bad = await admin('/api/admin/importar', 'POST', Buffer.from('a;b\n1;2\n'), true);
-  assert.equal(bad.status, 400);
+  // La importació ja no existix.
+  assert.equal((await admin('/api/admin/plantilla.xlsx')).status, 404);
 });

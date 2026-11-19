@@ -717,7 +717,7 @@ body { display: flex; flex-direction: column; min-height: 100svh; }
 @media (max-width: 520px) { .profile-grid { grid-template-columns: minmax(0, 1fr); } }
 
 /* Pàgines legals */
-.legal-page { max-width: 760px; margin: 32px auto; padding: 32px 36px; }
+.legal-page { width: min(760px, calc(100% - 32px)); max-width: 760px; margin: 32px auto; padding: 32px 36px; align-self: center; }
 .legal-page .back { display: inline-block; margin-bottom: 20px; font-size: 13px; color: #264a8c; text-decoration: none; }
 .legal-page h1 { font-size: var(--fs-title); line-height: 30px; margin-bottom: 4px; }
 .legal-page .updated { color: var(--muted); font-size: var(--fs-small); margin-bottom: 24px; }
@@ -784,19 +784,6 @@ input.limit-input:not([type="hidden"]) { width: 76px; height: 32px; padding: 0 1
 .limit-line { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 10px 14px; border-radius: 14px; background: rgba(226, 234, 248, .55); font-size: 13px; }
 .split.even { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
 
-/* Importar */
-.import-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.file-pick { position: relative; display: inline-flex; align-items: center; gap: 10px; height: var(--field-height); padding: 0 18px; border: 1.5px dashed rgba(79, 116, 209, .55); border-radius: 999px; background: rgba(255, 255, 255, .45); color: #2c4a91; font-weight: 500; cursor: pointer; max-width: 100%; }
-.file-pick:hover { background: rgba(226, 234, 248, .8); }
-.file-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
-.file-pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.import-preview { margin-top: 16px; }
-.import-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.import-table { max-height: 360px; overflow: auto; border-radius: 14px; }
-tr.row-error td { background: rgba(251, 225, 227, .45); }
-.pill.pill-new { background: #dcf3e4; color: #1e6b3a; }
-.pill.pill-update { background: #e1e9fb; color: #2c4a91; }
-.pill.pill-error { background: #fbe1e3; color: #a3232d; }
 
 /* Estadístiques */
 .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
@@ -936,14 +923,11 @@ table.history td.detail { color: #3b4559; }
 [data-theme="dark"] .seg.waiting { background: #3f5d99; }
 [data-theme="dark"] .seg.unanswered { background: rgba(255, 255, 255, .14); }
 [data-theme="dark"] table.history td.detail { color: #c2cbdc; }
-[data-theme="dark"] .file-pick { background: rgba(255, 255, 255, .04); color: #b7cbff; border-color: rgba(126, 163, 242, .5); }
-[data-theme="dark"] .file-pick:hover { background: rgba(126, 163, 242, .12); }
 [data-theme="dark"] .profile-grid > div { border-color: rgba(255, 255, 255, .1); background: linear-gradient(135deg, rgba(255, 255, 255, .06), rgba(126, 163, 242, .1)); box-shadow: none; }
 [data-theme="dark"] .profile-grid dt, [data-theme="dark"] .profile-head span { color: #a8b2c6; }
 [data-theme="dark"] .profile-grid dd { color: #f2f5fb; }
 [data-theme="dark"] .profile-head { border-bottom-color: rgba(255, 255, 255, .1); }
 [data-theme="dark"] .cookie-bar { border-color: rgba(255, 255, 255, .12); background: linear-gradient(110deg, rgba(26, 33, 50, .92), rgba(30, 36, 60, .92)); }
-[data-theme="dark"] .cookie-bar a, [data-theme="dark"] .fine a, [data-theme="dark"] .legal-page .back, [data-theme="dark"] .file-pick span { color: #9db8ff; }
 [data-theme="dark"] .site-foot { color: #b6c0d3; }
 [data-theme="dark"] .icon-btn .badge { box-shadow: 0 0 0 2px #161d2b; }
 [data-theme="dark"] .notice-list li { border-top-color: rgba(255, 255, 255, .08); }
@@ -953,3 +937,20 @@ table.history td.detail { color: #3b4559; }
 }
 input.limit-input::placeholder { font-style: italic; opacity: .55; }
 .btn:disabled, .btn[disabled] { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+/* Cartell per classe: botó i desplegable en una sola càpsula. */
+.poster-pick { display: inline-flex; align-items: stretch; }
+.poster-pick .btn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.poster-pick select {
+  height: auto;
+  width: auto;
+  padding: 0 30px 0 12px;
+  border: 1px solid var(--line, rgba(111, 130, 165, .35));
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  background-color: rgba(255, 255, 255, .55);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+[data-theme="dark"] .poster-pick select { background-color: rgba(255, 255, 255, .08); color: inherit; }
